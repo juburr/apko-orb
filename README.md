@@ -1,5 +1,5 @@
 <div align="center">
-  <img align="center" width="320" src="assets/logos/apko-orb-logo.png" alt="Cosign Orb">
+  <img align="center" width="320" src="assets/logos/apko-orb-logo.png" alt="Apko Orb">
   <h1>CircleCI Apko Orb</h1>
   <i>An orb for simplifying Apko installation and use within CircleCI.</i><br /><br />
 </div>
