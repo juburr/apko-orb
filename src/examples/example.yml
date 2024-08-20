@@ -4,11 +4,11 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@1.0.0
+    apko: juburr/apko-orb@0.0.3
   jobs:
     build-images:
       docker:
-        - image: cimg/base:stable
+        - image: cimg/base:current-22.04
       steps:
         - apko/install
   workflows:

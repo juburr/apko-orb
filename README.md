@@ -15,3 +15,7 @@ This is an unofficial Apko orb used for installing Apko in your CircleCI pipelin
 - **Provenance**: Installs directly from Apko's official [releases page](https://github.com/chainguard-dev/apko/releases/) on GitHub. No third-party websites, domains, or proxies are used.
 - **Confidentiality**: All secrets and environment variables are handled in accordance with CircleCI's [security recommendations](https://circleci.com/docs/security-recommendations/) and [best practices](https://circleci.com/docs/orbs-best-practices/).
 - **Privacy**: No usage data of any kind is collected or shipped back to the orb developer.
+
+Info for security teams:
+- Required external access to allow, if running a locked down, self-hosted CircleCI pipeline on-prem:
+  - `github.com`: For download and installation of the Apko tool.
