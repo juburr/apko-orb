@@ -27,11 +27,18 @@ jobs:
       - image: cimg/base:current-22.04
     steps:
       - checkout
-      # Run your orb's commands to validate them.
       - apko-orb/install
       - run:
           name: Verify Install
           command: command -v apko
+      - run:
+          name: Log Apko Version
+          command: apko version
+      - apko-orb/build:
+          config_path: src/tests/gdal-runtime.yaml
+          image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
+          log_level: debug
+          output_path: new-directory/gdal-runtime.tar
 workflows:
   test-deploy:
     jobs:

@@ -4,13 +4,18 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@0.2.6
+    apko: juburr/apko-orb@0.3.0
   jobs:
     build-images:
       docker:
         - image: cimg/base:current-22.04
       steps:
+        - checkout
         - apko/install
+        - apko/build:
+            config_path: src/containers/runtimes/gdal.yaml
+            image_uri: ghcr.io/juburr/apko-orb/gdal-runtime:latest
+            output_path: gdal-runtime.tar
   workflows:
     use-my-orb:
       jobs:

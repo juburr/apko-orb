@@ -1,0 +1,25 @@
+description: Builds a container using apko.
+parameters:
+  config_path:
+    type: string
+    description: Path to a the YAML configuration file.
+  image_uri:
+    type: string
+    description: Image and tag of the output container image.
+  log_level:
+    type: enum
+    enum: ["debug", "info", "warn", "error", "fatal", "panic"]
+    default: "debug"
+    description: Logging level to use.
+  output_path:
+    type: string
+    description: Output filename for the final TAR file.
+steps:
+  - run:
+      name: Build Apko Image
+      environment:
+        PARAM_CONFIG_PATH: << parameters.config_path >>
+        PARAM_IMAGE_URI: << parameters.image_uri >>
+        PARAM_LOG_LEVEL: << parameters.log_level >>
+        PARAM_OUTPUT_PATH: << parameters.output_path >>
+      command: << include(scripts/build.sh) >>
