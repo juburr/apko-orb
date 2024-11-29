@@ -14,7 +14,7 @@ parameters:
     description: Option to perform SHA-512 checksum verification on the downloaded Apko executable.
   version:
     type: string
-    default: "0.19.2"
+    default: "0.20.1"
     description: Specify the semver of the Apko version to install.
 steps:
   - when:
