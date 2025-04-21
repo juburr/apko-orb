@@ -4,7 +4,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@0.3.2
+    apko: juburr/apko-orb@0.3.3
   jobs:
     build-images:
       docker:
