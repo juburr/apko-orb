@@ -124,7 +124,14 @@ fi
 
 # If there was no cache hit, go ahead and re-download the binary.
 if [[ ! -f apko ]]; then
-    wget "https://github.com/chainguard-dev/apko/releases/download/v${VERSION}/apko_${VERSION}_linux_amd64.tar.gz" -O apko.tar.gz
+    if command -v wget &> /dev/null; then
+        wget "https://github.com/chainguard-dev/apko/releases/download/v${VERSION}/apko_${VERSION}_linux_amd64.tar.gz" -O apko.tar.gz
+    elif command -v curl &> /dev/null; then
+        curl -L "https://github.com/chainguard-dev/apko/releases/download/v${VERSION}/apko_${VERSION}_linux_amd64.tar.gz" -o apko.tar.gz
+    else
+        echo "ERROR: Neither wget nor curl is available. Please install one of them."
+        exit 1
+    fi
     tar zxvf apko.tar.gz "apko_${VERSION}_linux_amd64/apko" --strip 1
 fi
 
