@@ -18,4 +18,10 @@ This is an unofficial Apko orb used for installing Apko in your CircleCI pipelin
 
 Info for security teams:
 - Required external access to allow, if running a locked down, self-hosted CircleCI pipeline on-prem:
-  - `github.com`: For download and installation of the Apko tool.
+  - `install` command:
+    - `github.com`: For download and installation of the Apko tool.
+    - `release-assets.githubusercontent.com`: GitHub redirects release downloads from `github.com` to this host.
+    - `objects.githubusercontent.com`: Older redirect target for GitHub release downloads; allow it alongside `release-assets.githubusercontent.com`.
+  - `build` command, depending on the repositories and keyrings in your apko configuration:
+    - `packages.wolfi.dev`: For Wolfi-based configurations. Apko fetches the signing key, the `APKINDEX.tar.gz` index, and the packages, and requests `/os/apk-configuration` for key discovery.
+    - Any other repository or keyring URL in your configuration. Local repository and key paths need no network access.
