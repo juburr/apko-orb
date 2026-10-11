@@ -19,3 +19,9 @@ This is an unofficial Apko orb used for installing Apko in your CircleCI pipelin
 Info for security teams:
 - Required external access to allow, if running a locked down, self-hosted CircleCI pipeline on-prem:
   - `github.com`: For download and installation of the Apko tool.
+
+## Multi-Architecture Images
+apko assembles images without running code for the target architecture, so a single executor can build `amd64` and `arm64` images without emulation. List the architectures under `archs` in the apko configuration, or override that list with the `build` command's `arch` parameter (for example `arch: amd64,arm64`, or `arch: host` to build only for the executor's architecture).
+
+- The output tarball contains an OCI image index. `docker load` loads one image per architecture, tagged with an architecture suffix such as `my-image:latest-amd64` and `my-image:latest-arm64`. Single-architecture builds are suffixed too.
+- Running an `arm64` image, for example in a smoke test, still requires an `arm64` executor or emulation.

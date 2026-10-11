@@ -39,12 +39,51 @@ jobs:
           image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
           log_level: debug
           output_path: new-directory/gdal-runtime.tar
+  multi-arch-test:
+    docker:
+      - image: cimg/base:current-22.04
+    steps:
+      - checkout
+      - apko-orb/install
+      # apko assembles each architecture without emulation, so an amd64
+      # executor can produce the arm64 image too.
+      - apko-orb/build:
+          arch: amd64,arm64
+          config_path: src/tests/multi-arch.yaml
+          image_uri: multi-arch-test:latest
+          log_level: info
+          output_path: multi-arch/image.tar
+      - run:
+          name: Verify Image Index Platforms
+          command: |
+            PLATFORMS=$(tar -xOf multi-arch/image.tar index.json | jq -r '[.manifests[].platform.architecture] | sort | join(",")')
+            echo "Index platforms: ${PLATFORMS}"
+            if [[ "${PLATFORMS}" != "amd64,arm64" ]]; then
+              echo "Expected an image index with amd64 and arm64 manifests"
+              exit 1
+            fi
+      - setup_remote_docker
+      - run:
+          name: Load And Run Built Images
+          command: |
+            docker load --input multi-arch/image.tar
+            for ARCH in amd64 arm64; do
+              ACTUAL=$(docker image inspect --format '{{.Architecture}}' "multi-arch-test:latest-${ARCH}")
+              echo "multi-arch-test:latest-${ARCH} architecture: ${ACTUAL}"
+              if [[ "${ACTUAL}" != "${ARCH}" ]]; then
+                echo "Unexpected architecture for the ${ARCH} image"
+                exit 1
+              fi
+            done
+            docker run --rm multi-arch-test:latest-amd64 busybox echo "amd64 image runs"
 workflows:
   test-deploy:
     jobs:
       # Make sure to include "filters: *filters" in every test job you want to run as part of your deployment.
       # Test your orb's commands in a custom job and test your orb's jobs directly as a part of this workflow.
       - command-test:
+          filters: *filters
+      - multi-arch-test:
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
       - orb-tools/pack:
@@ -57,5 +96,6 @@ workflows:
           requires:
             - orb-tools/pack
             - command-test
+            - multi-arch-test
           context: orb-publishing
           filters: *release-filters

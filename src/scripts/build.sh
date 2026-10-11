@@ -3,6 +3,7 @@
 set -e
 
 # Ensure CircleCI environment variables can be passed in as orb parameters
+ARCH=$(circleci env subst "${PARAM_ARCH}")
 CONFIG_PATH=$(circleci env subst "${PARAM_CONFIG_PATH}")
 IMAGE_URI=$(circleci env subst "${PARAM_IMAGE_URI}")
 LOG_LEVEL=$(circleci env subst "${PARAM_LOG_LEVEL}")
@@ -13,6 +14,7 @@ OUTPUT_DIR=$(dirname "${OUTPUT_PATH}")
 
 # Print command parameters for debugging purposes.
 echo "Running Apko build with the following parameters:"
+echo "  ARCH: ${ARCH:-(from configuration file)}"
 echo "  CONFIG_PATH: ${CONFIG_PATH}"
 echo "  IMAGE_URI: ${IMAGE_URI}"
 echo "  LOG_LEVEL: ${LOG_LEVEL}"
@@ -36,5 +38,10 @@ else
 fi
 
 # Build image
+BUILD_ARGS=(--log-level "${LOG_LEVEL}")
+if [[ -n "${ARCH}" ]]; then
+    BUILD_ARGS+=(--arch "${ARCH}")
+fi
+
 echo "Building container image with apko..."
-apko build --log-level "${LOG_LEVEL}" "${CONFIG_PATH}" "${IMAGE_URI}" "${OUTPUT_PATH}"
+apko build "${BUILD_ARGS[@]}" "${CONFIG_PATH}" "${IMAGE_URI}" "${OUTPUT_PATH}"
