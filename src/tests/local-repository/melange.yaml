@@ -1,0 +1,22 @@
+package:
+  name: apko-orb-hello
+  version: 0.0.1
+  epoch: 0
+  description: Trivial package used to test installing APKs from a local signed repository.
+  copyright:
+    - license: MIT
+
+environment:
+  contents:
+    keyring:
+      - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    repositories:
+      - https://packages.wolfi.dev/os
+    packages:
+      - busybox
+
+pipeline:
+  - runs: |
+      mkdir -p "${{targets.destdir}}/usr/bin"
+      printf '#!/bin/sh\necho "hello from a local signed apk"\n' > "${{targets.destdir}}/usr/bin/apko-orb-hello"
+      chmod 0755 "${{targets.destdir}}/usr/bin/apko-orb-hello"
