@@ -10,8 +10,12 @@ parameters:
   verify_checksums:
     type: enum
     enum: ["false", "known_versions", "strict"]
-    default: known_versions
-    description: Option to perform SHA-512 checksum verification on the downloaded Apko executable.
+    default: strict
+    description: >
+      Option to perform SHA-512 checksum verification on the downloaded Apko executable.
+      "strict" (default) fails the install when the requested version has no checksum in this orb's lookup table.
+      "known_versions" verifies listed versions but installs unlisted versions unverified, with a warning.
+      "false" disables verification entirely and is not recommended.
   version:
     type: string
     default: "1.4.6"
@@ -21,7 +25,7 @@ steps:
       condition: << parameters.caching >>
       steps:
         - restore_cache:
-            key: apko-cache-<< parameters.version >>
+            key: apko-cache-<< parameters.version >>-{{ arch }}
   - run:
       name: Install Apko << parameters.version >>
       environment:
@@ -33,7 +37,7 @@ steps:
       condition: << parameters.caching >>
       steps:
         - save_cache:
-            key: apko-cache-<< parameters.version >>
+            key: apko-cache-<< parameters.version >>-{{ arch }}
             paths:
               - apko.tar.gz
   - run:
