@@ -1,0 +1,53 @@
+description: >
+  Build your own APKs with melange, sign them with an ephemeral key, and install
+  them from a build-local repository alongside public Wolfi packages. The apko
+  configuration lists the local repository and public key as paths relative to
+  the job's working directory, for example:
+
+    contents:
+      keyring:
+        - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+        - ./melange.rsa.pub
+      repositories:
+        - https://packages.wolfi.dev/os
+        - '@local ./packages'
+      packages:
+        - my-app@local
+
+  Pin local packages with "@local". Otherwise apko installs the highest version
+  found in any repository, so a same-named public package could replace yours.
+  A machine executor is used because melange's docker runner needs a local
+  Docker daemon.
+
+usage:
+  version: 2.1
+  orbs:
+    apko: juburr/apko-orb@0.4.0
+    melange: juburr/melange-orb@0.1.0
+  jobs:
+    build-images:
+      machine:
+        image: ubuntu-2404:current
+      steps:
+        - checkout
+        - run:
+            name: Prepare Install Path
+            command: |
+              mkdir -p "${HOME}/bin"
+              echo 'export PATH="${HOME}/bin:${PATH}"' >> "${BASH_ENV}"
+        - apko/install
+        - melange/install:
+            verify_checksums: strict
+        - run:
+            name: Build Signed Packages
+            command: |
+              melange keygen
+              melange build melange.yaml --arch x86_64 --runner docker --signing-key melange.rsa --out-dir packages
+        - apko/build:
+            config_path: apko.yaml
+            image_uri: ghcr.io/example/my-app:latest
+            output_path: my-app.tar
+  workflows:
+    use-my-orb:
+      jobs:
+        - build-images
