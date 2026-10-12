@@ -3,6 +3,7 @@ orbs:
   # Your orb will be automatically injected here during the pipeline.
   # Reference your orb's jobs and commands below as they will exist when built.
   orb-tools: circleci/orb-tools@12.3
+  melange: juburr/melange-orb@0.1.0
   # The orb definition is intentionally not included here. It will be injected into the pipeline.
   apko-orb: {}
 
@@ -53,6 +54,59 @@ jobs:
               exit 1
             fi
             docker run --rm "${IMAGE}" gdalinfo --version
+  # Builds a product APK with melange, signs it and its index with an ephemeral
+  # key, then installs it from the build-local repository with apko.
+  # A machine executor is used because melange's docker runner needs a local
+  # Docker daemon that can bind-mount the workspace.
+  local-repository-test:
+    machine:
+      image: ubuntu-2404:current
+    steps:
+      - checkout
+      - run:
+          # Unlike cimg/* Docker images, machine images do not guarantee that the
+          # orbs' default install_path (~/bin) exists or is on the PATH.
+          name: Prepare Install Path
+          command: |
+            mkdir -p "${HOME}/bin"
+            echo 'export PATH="${HOME}/bin:${PATH}"' >> "${BASH_ENV}"
+      - apko-orb/install
+      - melange/install:
+          version: 0.61.2
+          verify_checksums: strict
+      - run:
+          name: Build Signed APK With Ephemeral Key
+          command: |
+            melange keygen
+            melange build src/tests/local-repository/melange.yaml \
+              --arch x86_64 \
+              --runner docker \
+              --signing-key melange.rsa \
+              --out-dir packages
+      - run:
+          name: Reject Repository Without Its Key
+          command: |
+            grep -v 'melange.rsa.pub' src/tests/local-repository/apko.yaml > /tmp/apko-without-key.yaml
+            if apko build /tmp/apko-without-key.yaml local-repository-test:untrusted /tmp/untrusted.tar > /tmp/untrusted.log 2>&1; then
+              echo "apko installed from a repository whose signing key is not in the keyring"
+              exit 1
+            fi
+            grep 'no signature with known key' /tmp/untrusted.log
+      - apko-orb/build:
+          config_path: src/tests/local-repository/apko.yaml
+          image_uri: local-repository-test:latest
+          log_level: info
+          output_path: local-repository/image.tar
+      - run:
+          name: Run Built Image
+          command: |
+            docker load --input local-repository/image.tar
+            OUTPUT=$(docker run --rm local-repository-test:latest-amd64)
+            echo "${OUTPUT}"
+            if [[ "${OUTPUT}" != "hello from a local signed apk" ]]; then
+              echo "Unexpected output from the locally built package"
+              exit 1
+            fi
   command-test-arm64:
     machine:
       image: ubuntu-2404:current
@@ -96,6 +150,8 @@ workflows:
       # Test your orb's commands in a custom job and test your orb's jobs directly as a part of this workflow.
       - command-test:
           filters: *filters
+      - local-repository-test:
+          filters: *filters
       - command-test-arm64:
           filters: *filters
       - checksum-test:
@@ -113,5 +169,6 @@ workflows:
             - command-test
             - command-test-arm64
             - checksum-test
+            - local-repository-test
           context: orb-publishing
           filters: *release-filters

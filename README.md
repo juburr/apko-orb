@@ -27,3 +27,24 @@ Info for security teams:
   - `build` command, depending on the repositories and keyrings in your apko configuration:
     - `packages.wolfi.dev`: For Wolfi-based configurations. Apko fetches the signing key, the `APKINDEX.tar.gz` index, and the packages, and requests `/os/apk-configuration` for key discovery.
     - Any other repository or keyring URL in your configuration. Local repository and key paths need no network access.
+
+## Installing Packages From A Local Signed Repository
+The `build` command can install your own melange-built APKs from a build-local repository signed with an ephemeral key (`melange keygen`). List the repository and public key in the apko configuration as paths relative to the job's working directory, and pin local packages with a repository tag:
+
+```yaml
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    - ./melange.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+    - '@local ./packages'
+  packages:
+    - my-app@local
+```
+
+- apko refuses a repository index that is not signed by a key in the keyring, so the ephemeral public key must be listed.
+- Without the `@local` pin, apko installs the highest version available in any repository, so a same-named public package could replace yours.
+- Every architecture in `archs` needs a matching directory in the local repository (for example `packages/x86_64` and `packages/aarch64`).
+
+See the `local_signed_repository` usage example for a complete job.

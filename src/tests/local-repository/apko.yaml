@@ -1,0 +1,23 @@
+# Relative paths are resolved against the directory apko runs in (the job's
+# working directory), not the directory containing this file.
+contents:
+  keyring:
+    - https://packages.wolfi.dev/os/wolfi-signing.rsa.pub
+    # Ephemeral public key from `melange keygen`.
+    - ./melange.rsa.pub
+  repositories:
+    - https://packages.wolfi.dev/os
+    # Tagged repository: only packages pinned with @local are taken from it.
+    - '@local ./packages'
+  packages:
+    - wolfi-baselayout
+    - busybox
+    # Without the @local pin, apko installs the highest version available in
+    # any repository, so a same-named public package could shadow this one.
+    - apko-orb-hello@local
+
+entrypoint:
+  command: /usr/bin/apko-orb-hello
+
+archs:
+  - amd64
