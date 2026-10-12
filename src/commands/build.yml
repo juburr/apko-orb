@@ -1,5 +1,11 @@
 description: Builds a container using apko.
 parameters:
+  arch:
+    type: string
+    default: ""
+    description: >
+      Architectures to build, passed to apko's --arch flag as a comma-separated list (e.g. "amd64,arm64", or "host").
+      Overrides the "archs" list in the configuration file. Leave empty to use the configuration file.
   config_path:
     type: string
     description: Path to a the YAML configuration file.
@@ -18,6 +24,7 @@ steps:
   - run:
       name: Build Apko Image
       environment:
+        PARAM_ARCH: << parameters.arch >>
         PARAM_CONFIG_PATH: << parameters.config_path >>
         PARAM_IMAGE_URI: << parameters.image_uri >>
         PARAM_LOG_LEVEL: << parameters.log_level >>

@@ -54,6 +54,43 @@ jobs:
               exit 1
             fi
             docker run --rm "${IMAGE}" gdalinfo --version
+  multi-arch-test:
+    docker:
+      - image: cimg/base:current-22.04
+    steps:
+      - checkout
+      - apko-orb/install
+      # apko assembles each architecture without emulation, so an amd64
+      # executor can produce the arm64 image too.
+      - apko-orb/build:
+          arch: amd64,arm64
+          config_path: src/tests/multi-arch.yaml
+          image_uri: multi-arch-test:latest
+          log_level: info
+          output_path: multi-arch/image.tar
+      - run:
+          name: Verify Image Index Platforms
+          command: |
+            PLATFORMS=$(tar -xOf multi-arch/image.tar index.json | jq -r '[.manifests[].platform.architecture] | sort | join(",")')
+            echo "Index platforms: ${PLATFORMS}"
+            if [[ "${PLATFORMS}" != "amd64,arm64" ]]; then
+              echo "Expected an image index with amd64 and arm64 manifests"
+              exit 1
+            fi
+      - setup_remote_docker
+      - run:
+          name: Load And Run Built Images
+          command: |
+            docker load --input multi-arch/image.tar
+            for ARCH in amd64 arm64; do
+              ACTUAL=$(docker image inspect --format '{{.Architecture}}' "multi-arch-test:latest-${ARCH}")
+              echo "multi-arch-test:latest-${ARCH} architecture: ${ACTUAL}"
+              if [[ "${ACTUAL}" != "${ARCH}" ]]; then
+                echo "Unexpected architecture for the ${ARCH} image"
+                exit 1
+              fi
+            done
+            docker run --rm multi-arch-test:latest-amd64 busybox echo "amd64 image runs"
   # Builds a product APK with melange, signs it and its index with an ephemeral
   # key, then installs it from the build-local repository with apko.
   # A machine executor is used because melange's docker runner needs a local
@@ -150,6 +187,8 @@ workflows:
       # Test your orb's commands in a custom job and test your orb's jobs directly as a part of this workflow.
       - command-test:
           filters: *filters
+      - multi-arch-test:
+          filters: *filters
       - local-repository-test:
           filters: *filters
       - command-test-arm64:
@@ -170,5 +209,6 @@ workflows:
             - command-test-arm64
             - checksum-test
             - local-repository-test
+            - multi-arch-test
           context: orb-publishing
           filters: *release-filters
