@@ -39,6 +39,20 @@ jobs:
           image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
           log_level: debug
           output_path: new-directory/gdal-runtime.tar
+      - setup_remote_docker
+      - run:
+          name: Run Built Image
+          command: |
+            docker load --input new-directory/gdal-runtime.tar
+            # apko suffixes loaded tags with the image architecture.
+            IMAGE=ghcr.io/juburr/apko-orb/gdal-runtime-test:latest-amd64
+            IMAGE_USER=$(docker image inspect --format '{{.Config.User}}' "${IMAGE}")
+            echo "Image user: ${IMAGE_USER}"
+            if [[ "${IMAGE_USER}" != "65532" ]]; then
+              echo "Expected the image to run as UID 65532"
+              exit 1
+            fi
+            docker run --rm "${IMAGE}" gdalinfo --version
   command-test-arm64:
     machine:
       image: ubuntu-2404:current
