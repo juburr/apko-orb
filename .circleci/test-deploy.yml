@@ -40,6 +40,20 @@ jobs:
           image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
           log_level: debug
           output_path: new-directory/gdal-runtime.tar
+      - setup_remote_docker
+      - run:
+          name: Run Built Image
+          command: |
+            docker load --input new-directory/gdal-runtime.tar
+            # apko suffixes loaded tags with the image architecture.
+            IMAGE=ghcr.io/juburr/apko-orb/gdal-runtime-test:latest-amd64
+            IMAGE_USER=$(docker image inspect --format '{{.Config.User}}' "${IMAGE}")
+            echo "Image user: ${IMAGE_USER}"
+            if [[ "${IMAGE_USER}" != "65532" ]]; then
+              echo "Expected the image to run as UID 65532"
+              exit 1
+            fi
+            docker run --rm "${IMAGE}" gdalinfo --version
   # Builds a product APK with melange, signs it and its index with an ephemeral
   # key, then installs it from the build-local repository with apko.
   # A machine executor is used because melange's docker runner needs a local

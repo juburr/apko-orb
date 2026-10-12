@@ -17,6 +17,8 @@ accounts:
   users:
     - username: nonroot
       uid: 65532
+  # Without run-as, the image config has no User and containers run as root.
+  run-as: nonroot
 
 archs:
   - amd64
