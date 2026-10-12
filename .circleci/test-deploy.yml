@@ -53,12 +53,22 @@ jobs:
               exit 1
             fi
             docker run --rm "${IMAGE}" gdalinfo --version
+  checksum-test:
+    docker:
+      - image: cimg/base:current-22.04
+    steps:
+      - checkout
+      - run:
+          name: Unlisted Versions Fail Closed By Default
+          command: bash src/tests/install-checksums.sh
 workflows:
   test-deploy:
     jobs:
       # Make sure to include "filters: *filters" in every test job you want to run as part of your deployment.
       # Test your orb's commands in a custom job and test your orb's jobs directly as a part of this workflow.
       - command-test:
+          filters: *filters
+      - checksum-test:
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
       - orb-tools/pack:
@@ -71,5 +81,6 @@ workflows:
           requires:
             - orb-tools/pack
             - command-test
+            - checksum-test
           context: orb-publishing
           filters: *release-filters
