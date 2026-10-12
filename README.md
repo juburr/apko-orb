@@ -11,7 +11,7 @@ This is an unofficial Apko orb used for installing Apko in your CircleCI pipelin
 ## Features
 ### **Secure By Design**
 - **Least Privilege**: Installs to a user-owned directory by default, with no `sudo` usage anywhere in this orb.
-- **Integrity**: Checksum validation of all downloaded binaries using SHA-512.
+- **Integrity**: Checksum validation of all downloaded binaries using SHA-512. Installation fails closed if the requested version has no checksum in the orb's lookup table; set `verify_checksums` to `known_versions` to opt out.
 - **Provenance**: Installs directly from Apko's official [releases page](https://github.com/chainguard-dev/apko/releases/) on GitHub. No third-party websites, domains, or proxies are used.
 - **Confidentiality**: All secrets and environment variables are handled in accordance with CircleCI's [security recommendations](https://circleci.com/docs/security-recommendations/) and [best practices](https://circleci.com/docs/orbs-best-practices/).
 - **Privacy**: No usage data of any kind is collected or shipped back to the orb developer.
