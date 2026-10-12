@@ -8,6 +8,8 @@
 
 This is an unofficial Apko orb used for installing Apko in your CircleCI pipeline to build distroless container images. Contributions are welcome!
 
+The `install` command supports Linux `amd64` and `arm64` executors, including CircleCI's Arm resource classes. The matching Apko release is selected automatically.
+
 ## Features
 ### **Secure By Design**
 - **Least Privilege**: Installs to a user-owned directory by default, with no `sudo` usage anywhere in this orb.

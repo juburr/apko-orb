@@ -76,6 +76,34 @@ jobs:
               fi
             done
             docker run --rm multi-arch-test:latest-amd64 busybox echo "amd64 image runs"
+  command-test-arm64:
+    machine:
+      image: ubuntu-2404:current
+    resource_class: arm.medium
+    steps:
+      - checkout
+      - run:
+          # Unlike cimg/* Docker images, machine images do not guarantee that the
+          # orb's default install_path (~/bin) exists or is on the PATH.
+          name: Prepare Install Path
+          command: |
+            mkdir -p "${HOME}/bin"
+            echo 'export PATH="${HOME}/bin:${PATH}"' >> "${BASH_ENV}"
+      - apko-orb/install:
+          verify_checksums: strict
+      - run:
+          name: Verify Native arm64 Binary
+          command: |
+            uname -m
+            apko version
+            apko version | grep -E 'Platform:[[:space:]]+linux/arm64'
+      # apko assembles images without executing target-arch code, so the amd64
+      # test image also builds on an arm64 executor.
+      - apko-orb/build:
+          config_path: src/tests/gdal-runtime.yaml
+          image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
+          log_level: info
+          output_path: new-directory/gdal-runtime.tar
   checksum-test:
     docker:
       - image: cimg/base:current-22.04
@@ -93,6 +121,8 @@ workflows:
           filters: *filters
       - multi-arch-test:
           filters: *filters
+      - command-test-arm64:
+          filters: *filters
       - checksum-test:
           filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
@@ -106,7 +136,8 @@ workflows:
           requires:
             - orb-tools/pack
             - command-test
-            - multi-arch-test
+            - command-test-arm64
             - checksum-test
+            - multi-arch-test
           context: orb-publishing
           filters: *release-filters
