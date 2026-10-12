@@ -2,7 +2,7 @@
 
 # Convenience script, not used by directly by the production orb, but
 # for development purposes when adding SHA-512 checksums to the lookup
-# table in install.sh.
+# tables in install.sh.
 
 set -e
 set +o history
@@ -25,13 +25,29 @@ if [[ -z "${VERSION}" ]]; then
   exit 1
 fi
 
-# Download the specified version and get the SHA-512 checksum of
-# the apko binary inside. Suppress output for readability; this is
-# dev script, so simply re-enable output if you need to debug anything.
-cd /tmp
-wget "https://github.com/chainguard-dev/apko/releases/download/v${VERSION}/apko_${VERSION}_linux_amd64.tar.gz" -O /tmp/apko.tar.gz -q
-tar zxvf apko.tar.gz "apko_${VERSION}_linux_amd64/apko" --strip 1 > /dev/null 2>&1
-CHECKSUM=$(sha512sum /tmp/apko | awk '{ print $1 }')
-echo "[\"${VERSION}\"]=\"${CHECKSUM}\""
-rm /tmp/apko
-rm /tmp/apko.tar.gz
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "${WORK_DIR}"' EXIT
+cd "${WORK_DIR}"
+
+# Upstream's checksums.txt lists the SHA-256 of each release tarball. It is
+# used as a consistency check on the download before the binary is hashed.
+BASE_URL="https://github.com/chainguard-dev/apko/releases/download/v${VERSION}"
+wget "${BASE_URL}/checksums.txt" -O checksums.txt -q
+
+# Download each supported architecture and print the SHA-512 checksum of
+# the apko binary inside, formatted for the matching table in install.sh.
+# Output is suppressed for readability; this is a dev script, so simply
+# re-enable output if you need to debug anything.
+for ARCH in amd64 arm64; do
+    RELEASE_NAME="apko_${VERSION}_linux_${ARCH}"
+    wget "${BASE_URL}/${RELEASE_NAME}.tar.gz" -O "${RELEASE_NAME}.tar.gz" -q
+    if ! grep -q " ${RELEASE_NAME}.tar.gz$" checksums.txt; then
+        echo "No upstream checksum for ${RELEASE_NAME}.tar.gz" >&2
+        exit 1
+    fi
+    grep " ${RELEASE_NAME}.tar.gz$" checksums.txt | sha256sum --check --quiet
+    tar zxvf "${RELEASE_NAME}.tar.gz" "${RELEASE_NAME}/apko" > /dev/null 2>&1
+    CHECKSUM=$(sha512sum "${RELEASE_NAME}/apko" | awk '{ print $1 }')
+    echo "# sha512sums_${ARCH}"
+    echo "[\"${VERSION}\"]=\"${CHECKSUM}\""
+done
