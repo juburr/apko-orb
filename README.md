@@ -133,7 +133,7 @@ Installs the apko binary. Run it before any other command.
 | `version` | string | pinned per orb release | apko version to install, without a leading `v` (e.g. `1.4.6`). |
 | `install_path` | string | `$HOME/bin` | Absolute directory for the binary that doesn't need root access. It is created if needed and added to `PATH` when it isn't already there. |
 | `verify_checksums` | enum | `strict` | `strict` fails when the version has no checksum in the orb's lookup table. `known_versions` verifies listed versions and installs unlisted ones unverified, with a warning. `false` disables verification and is not recommended. |
-| `caching` | boolean | `true` | Caches the downloaded apko release, keyed by version and architecture. Only verified releases are cached, and they are verified again when restored. |
+| `caching` | boolean | `true` | Caches the downloaded apko release, keyed by version, architecture and home directory. Only verified releases are cached, and they are verified again when restored. |
 
 ### `build`
 
