@@ -131,9 +131,9 @@ Installs the apko binary. Run it before any other command.
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
 | `version` | string | pinned per orb release | apko version to install, without a leading `v` (e.g. `1.4.6`). |
-| `install_path` | string | `/home/circleci/bin` | An existing directory on the `PATH` that doesn't need root access, with no trailing slash. |
+| `install_path` | string | `$HOME/bin` | Absolute directory for the binary that doesn't need root access. It is created if needed and added to `PATH` when it isn't already there. |
 | `verify_checksums` | enum | `strict` | `strict` fails when the version has no checksum in the orb's lookup table. `known_versions` verifies listed versions and installs unlisted ones unverified, with a warning. `false` disables verification and is not recommended. |
-| `caching` | boolean | `true` | Caches the downloaded apko release, keyed by version and architecture. |
+| `caching` | boolean | `true` | Caches the downloaded apko release, keyed by version and architecture. Only verified releases are cached, and they are verified again when restored. |
 
 ### `build`
 
@@ -202,7 +202,7 @@ See the [`local_signed_repository`](src/examples/local_signed_repository.yml) us
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome. When apko ships a new release, `src/scripts/install_hash.sh -v <version>` prints the SHA-512 checksums to add to the lookup tables in [`install.sh`](src/scripts/install.sh).
+Issues and pull requests are welcome. When apko ships a new release, `src/scripts/install_hash.sh -v <version>` prints the SHA-512 checksums to add to the lookup table in [`install.sh`](src/scripts/install.sh).
 
 Need the logo for a blog post, slide, or your own docs? Transparent PNGs at 64, 128, 256, 512, and 1024 px live in [`assets/logos`](assets/logos).
 
