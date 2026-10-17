@@ -30,7 +30,7 @@
   <tr>
     <td width="33%" valign="top">
       <h3>🔐 Verified installs</h3>
-      Every apko download is checked against a pinned SHA-512 checksum. Unknown versions fail closed by default.
+      In the default <code>strict</code> mode, every apko download is checked against a pinned SHA-512 checksum, and versions without one fail closed.
     </td>
     <td width="33%" valign="top">
       <h3>🦾 amd64 and arm64</h3>
@@ -104,6 +104,12 @@ jobs:
           config_path: apko.yaml
           image_uri: ghcr.io/my-org/my-app:latest
           output_path: build/my-app.tar
+      - setup_remote_docker
+      - run:
+          name: Smoke Test Image
+          command: |
+            docker load --input build/my-app.tar
+            docker run --rm ghcr.io/my-org/my-app:latest-amd64 busybox echo "hello from apko"
 
 workflows:
   build:
@@ -111,12 +117,7 @@ workflows:
       - build-image
 ```
 
-**3. Push.** `build/my-app.tar` is an OCI image tarball with one image per architecture, ready to load, scan, or publish:
-
-```console
-$ docker load --input build/my-app.tar
-$ docker run --rm ghcr.io/my-org/my-app:latest-amd64 busybox echo "hello from apko"
-```
+**3. Push.** The job writes `build/my-app.tar`, an OCI image tarball with one image per architecture, then loads it into Docker and runs the `amd64` image. From there, scan it, publish it, or keep it with `store_artifacts`.
 
 > [!TIP]
 > String parameters are passed through `circleci env subst`, so they can use environment variables. For example, `image_uri: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit.
