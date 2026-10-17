@@ -3,11 +3,11 @@
 set -e
 
 # Ensure CircleCI environment variables can be passed in as orb parameters
-ARCH=$(circleci env subst "${PARAM_ARCH}")
-CONFIG_PATH=$(circleci env subst "${PARAM_CONFIG_PATH}")
-IMAGE_URI=$(circleci env subst "${PARAM_IMAGE_URI}")
-LOG_LEVEL=$(circleci env subst "${PARAM_LOG_LEVEL}")
-OUTPUT_PATH=$(circleci env subst "${PARAM_OUTPUT_PATH}")
+ARCH=$(printf '%s' "${PARAM_ARCH}" | circleci env subst)
+CONFIG_PATH=$(printf '%s' "${PARAM_CONFIG_PATH}" | circleci env subst)
+IMAGE_URI=$(printf '%s' "${PARAM_IMAGE_URI}" | circleci env subst)
+LOG_LEVEL=$(printf '%s' "${PARAM_LOG_LEVEL}" | circleci env subst)
+OUTPUT_PATH=$(printf '%s' "${PARAM_OUTPUT_PATH}" | circleci env subst)
 
 # Computed parameters
 OUTPUT_DIR=$(dirname "${OUTPUT_PATH}")

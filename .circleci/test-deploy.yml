@@ -180,6 +180,9 @@ jobs:
       - run:
           name: Unlisted Versions Fail Closed By Default
           command: bash src/tests/install-checksums.sh
+      - run:
+          name: Parameter Values Reach circleci env subst On Stdin
+          command: bash src/tests/env-subst.sh
 workflows:
   test-deploy:
     jobs:
