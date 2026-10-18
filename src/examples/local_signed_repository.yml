@@ -44,8 +44,8 @@ usage:
               melange keygen
               melange build melange.yaml --arch x86_64 --runner docker --signing-key melange.rsa --out-dir packages
         - apko/build:
-            config_path: apko.yaml
-            image_uri: ghcr.io/example/my-app:latest
+            config: apko.yaml
+            image: ghcr.io/example/my-app:latest
             output_path: my-app.tar
   workflows:
     use-my-orb:

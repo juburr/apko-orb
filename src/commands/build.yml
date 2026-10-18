@@ -1,4 +1,5 @@
-description: Builds a container using apko.
+description: >
+  Builds an image with apko build. The image is written to output_path; it is not pushed to a registry.
 parameters:
   arch:
     type: string
@@ -6,12 +7,15 @@ parameters:
     description: >
       Architectures to build, passed to apko's --arch flag as a comma-separated list (e.g. "amd64,arm64", or "host").
       Overrides the "archs" list in the configuration file. Leave empty to use the configuration file.
-  config_path:
+  config:
     type: string
-    description: Path to a the YAML configuration file.
-  image_uri:
+    description: Path to the apko image configuration YAML file, for example apko.yaml.
+  image:
     type: string
-    description: Image and tag of the output container image.
+    description: >
+      Image reference recorded in the output, passed to apko as its <tag> argument, for example ghcr.io/org/app:1.0.
+      The image is not pushed. Loading the tarball with docker load tags each architecture's image with this
+      reference plus an architecture suffix, for example ghcr.io/org/app:1.0-amd64.
   log_level:
     type: enum
     enum: ["debug", "info", "warn", "error", "fatal", "panic"]
@@ -19,14 +23,17 @@ parameters:
     description: Logging level to use.
   output_path:
     type: string
-    description: Output filename for the final TAR file.
+    description: >
+      Where apko writes the image. Normally the path of an OCI image tarball file to create, for example build/app.tar;
+      missing parent directories are created. If the path is an existing directory, apko writes an OCI image layout
+      into that directory instead of a tarball.
 steps:
   - run:
       name: Build Apko Image
       environment:
         PARAM_ARCH: << parameters.arch >>
-        PARAM_CONFIG_PATH: << parameters.config_path >>
-        PARAM_IMAGE_URI: << parameters.image_uri >>
+        PARAM_CONFIG: << parameters.config >>
+        PARAM_IMAGE: << parameters.image >>
         PARAM_LOG_LEVEL: << parameters.log_level >>
         PARAM_OUTPUT_PATH: << parameters.output_path >>
       command: << include(scripts/build.sh) >>

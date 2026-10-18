@@ -101,8 +101,8 @@ jobs:
       - checkout
       - apko/install
       - apko/build:
-          config_path: apko.yaml
-          image_uri: ghcr.io/my-org/my-app:latest
+          config: apko.yaml
+          image: ghcr.io/my-org/my-app:latest
           output_path: build/my-app.tar
       - setup_remote_docker
       - run:
@@ -120,7 +120,7 @@ workflows:
 **3. Push.** The job writes `build/my-app.tar`, an OCI image tarball with one image per architecture, then loads it into Docker and runs the `amd64` image. From there, scan it, publish it, or keep it with `store_artifacts`.
 
 > [!TIP]
-> String parameters are passed through `circleci env subst`, so they can use environment variables. For example, `image_uri: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit.
+> String parameters are passed through `circleci env subst`, so they can use environment variables. For example, `image: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit.
 
 ## 🧰 Commands
 
@@ -137,15 +137,24 @@ Installs the apko binary. Run it before any other command.
 
 ### `build`
 
-Builds an image with `apko build`.
+Builds an image with `apko build`. The image is written to `output_path` and is not pushed to a registry.
 
 | Parameter | Type | Default | Description |
 | --- | --- | --- | --- |
-| `config_path` | string | *required* | Path to the apko YAML configuration file. |
-| `image_uri` | string | *required* | Image and tag of the output image, e.g. `ghcr.io/my-org/my-app:latest`. |
-| `output_path` | string | *required* | Where to write the image tarball. Missing parent directories are created. |
+| `config` | string | *required* | Path to the apko image configuration YAML file, e.g. `apko.yaml`. |
+| `image` | string | *required* | Image reference recorded in the output (apko's `<tag>` argument), e.g. `ghcr.io/my-org/my-app:latest`. The image is not pushed. |
+| `output_path` | string | *required* | Path of the OCI image tarball to write, e.g. `build/my-app.tar`. Missing parent directories are created. If the path is an existing directory, apko writes an OCI image layout into it instead. |
 | `arch` | string | `""` | Comma-separated architectures passed to `--arch`, e.g. `amd64,arm64` or `host`. Overrides `archs` in the configuration file. |
 | `log_level` | enum | `debug` | One of `debug`, `info`, `warn`, `error`, `fatal`, `panic`. |
+
+## ⬆️ Upgrading
+
+Releases after 0.4.0 rename two `build` parameters. The values they take and the build itself are unchanged.
+
+| 0.4.0 and earlier | Now |
+| --- | --- |
+| `config_path` | `config` |
+| `image_uri` | `image` |
 
 ## 🔐 Secure By Design
 
