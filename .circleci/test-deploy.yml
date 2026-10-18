@@ -175,6 +175,14 @@ jobs:
       - run:
           name: Parameter Values Reach circleci env subst On Stdin
           command: bash src/tests/env-subst.sh
+  shell-conventions-test:
+    docker:
+      - image: cimg/base:current-22.04
+    steps:
+      - checkout
+      - run:
+          name: Scripts Follow The Shell Conventions
+          command: bash src/tests/shell_conventions_test.sh
 workflows:
   test-deploy:
     jobs:
@@ -190,6 +198,8 @@ workflows:
           filters: *filters
       - env-subst-test:
           filters: *filters
+      - shell-conventions-test:
+          filters: *filters
       # The orb must be re-packed for publishing, and saved to the workspace.
       - orb-tools/pack:
           filters: *release-filters
@@ -204,6 +214,7 @@ workflows:
             - command-test-arm64
             - env-subst-test
             - local-repository-test
+            - shell-conventions-test
             - multi-arch-test
           context: orb-publishing
           filters: *release-filters

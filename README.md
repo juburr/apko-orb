@@ -156,6 +156,8 @@ Releases after 0.4.0 rename two `build` parameters. The values they take and the
 | `config_path` | `config` |
 | `image_uri` | `image` |
 
+When `config` does not exist, `build` now prints `ERROR: Configuration YAML does not exist at: <config>` to stderr. Before, the message had no `ERROR:` prefix and went to stdout.
+
 ## 🔐 Secure By Design
 
 - **Least Privilege**: Installs to a user-owned directory by default, with no `sudo` usage anywhere in this orb.

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 # Ensure CircleCI environment variables can be passed in as orb parameters
 ARCH=$(printf '%s' "${PARAM_ARCH}" | circleci env subst)
@@ -24,7 +24,7 @@ echo ""
 
 # Validate configuration YAML file path
 if [[ ! -f "${CONFIG}" ]]; then
-    echo "Configuration YAML does not exist at: ${CONFIG}"
+    echo "ERROR: Configuration YAML does not exist at: ${CONFIG}" >&2
     exit 1
 fi
 
