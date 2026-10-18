@@ -36,8 +36,8 @@ jobs:
           name: Log Apko Version
           command: apko version
       - apko-orb/build:
-          config_path: src/tests/gdal-runtime.yaml
-          image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
+          config: src/tests/gdal-runtime.yaml
+          image: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
           log_level: debug
           output_path: new-directory/gdal-runtime.tar
       - setup_remote_docker
@@ -64,8 +64,8 @@ jobs:
       # executor can produce the arm64 image too.
       - apko-orb/build:
           arch: amd64,arm64
-          config_path: src/tests/multi-arch.yaml
-          image_uri: multi-arch-test:latest
+          config: src/tests/multi-arch.yaml
+          image: multi-arch-test:latest
           log_level: info
           output_path: multi-arch/image.tar
       - run:
@@ -130,8 +130,8 @@ jobs:
             fi
             grep 'no signature with known key' /tmp/untrusted.log
       - apko-orb/build:
-          config_path: src/tests/local-repository/apko.yaml
-          image_uri: local-repository-test:latest
+          config: src/tests/local-repository/apko.yaml
+          image: local-repository-test:latest
           log_level: info
           output_path: local-repository/image.tar
       - run:
@@ -163,8 +163,8 @@ jobs:
       # apko assembles images without executing target-arch code, so the amd64
       # test image also builds on an arm64 executor.
       - apko-orb/build:
-          config_path: src/tests/gdal-runtime.yaml
-          image_uri: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
+          config: src/tests/gdal-runtime.yaml
+          image: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
           log_level: info
           output_path: new-directory/gdal-runtime.tar
   env-subst-test:
