@@ -91,7 +91,7 @@ archs:
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@0.4.0
+  apko: juburr/apko-orb@0.5.0
 
 jobs:
   build-image:
