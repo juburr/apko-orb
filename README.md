@@ -128,7 +128,7 @@ archs:
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@0.5.0
+  apko: juburr/apko-orb@1.0.0
 
 jobs:
   build-image:
@@ -225,7 +225,7 @@ Environment variables are expanded in `install`'s `version` and `install_path`, 
 
 ## 📦 Upgrading
 
-Releases after 0.4.0 rename two `build` parameters. The values they take and the build itself are unchanged.
+v1.0.0 renames two `build` parameters. The values they take and the build itself are unchanged.
 
 | Old (0.4.0 and earlier) | New |
 | --- | --- |
@@ -277,7 +277,7 @@ The `install` command checks the downloaded apko binary against a SHA-512 lookup
 The table covers apko releases from 0.1 up to the default `version`, 1.4.6, on both architectures. If you pin an apko release newer than this orb, `strict` fails until the orb is upgraded. Upgrade the orb (or open a PR adding the checksum, generated with `src/scripts/install_hash.sh`) rather than opting out. `known_versions` and `false` remain available for cases where you accept running an unverified binary.
 
 > [!WARNING]
-> **Changed in the next release:** the default was previously `known_versions`, which installed unlisted versions without verification. Pipelines that pin an apko version newer than the orb's table now fail until they upgrade the orb or set `verify_checksums: known_versions` explicitly.
+> **Changed in v1.0.0:** the default was previously `known_versions`, which installed unlisted versions without verification. Pipelines that pin an apko version newer than the orb's table now fail until they upgrade the orb or set `verify_checksums: known_versions` explicitly.
 
 ## 🌐 Network Access
 
