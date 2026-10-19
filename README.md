@@ -221,7 +221,7 @@ Builds an image with `apko build` and writes it to `output_path`. The image is n
 | `arch` | *(empty)* | Comma-separated architectures passed to apko's `--arch`, e.g. `amd64,arm64` or `host`. Overrides `archs` in the configuration file; leave it empty to use the file's list. |
 | `log_level` | `debug` | apko's `--log-level`: `debug`, `info`, `warn`, `error`, `fatal` or `panic`. |
 
-Environment variables are expanded in `install`'s `version` and `install_path`, and in every `build` parameter.
+Environment variables are expanded in `install`'s `version` and `install_path`, and in `build`'s `config`, `image`, `output_path` and `arch`. `log_level` is an enum, so CircleCI checks its value before any step runs and it can't take a variable.
 
 ## 📦 Upgrading
 
@@ -260,7 +260,7 @@ Linux executors on `x86_64` (amd64) and `aarch64`/`arm64` (arm64), including Cir
 | `x86_64` or `amd64` | `apko_<version>_linux_amd64.tar.gz` |
 | `aarch64` or `arm64` | `apko_<version>_linux_arm64.tar.gz` |
 
-`install` needs bash 4 or newer, `tar`, `gzip`, and `curl` or `wget`. CI runs both commands on the Docker executor (`cimg/base`) and on amd64 and arm64 machine executors (`ubuntu-2404:current`).
+`install` needs bash 4 or newer, `mktemp`, `tar`, `gzip`, and `curl` or `wget`, plus `sha512sum` when it verifies. CI runs both commands on the Docker executor (`cimg/base`) and on amd64 and arm64 machine executors (`ubuntu-2404:current`).
 
 The download cache is keyed by apko version, executor architecture and home directory, so amd64 and arm64 jobs never share a cached binary. On executors whose `PATH` doesn't already include `install_path` (for example, machine executors), `install` adds it for later steps through `BASH_ENV`.
 
