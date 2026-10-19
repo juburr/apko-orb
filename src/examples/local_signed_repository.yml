@@ -30,11 +30,6 @@ usage:
         image: ubuntu-2404:current
       steps:
         - checkout
-        - run:
-            name: Prepare Install Path
-            command: |
-              mkdir -p "${HOME}/bin"
-              echo 'export PATH="${HOME}/bin:${PATH}"' >> "${BASH_ENV}"
         - apko/install
         - melange/install:
             verify_checksums: strict
