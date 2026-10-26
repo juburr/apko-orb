@@ -2,12 +2,23 @@
 
 set -euo pipefail
 
+# subst VALUE: expands environment variables in VALUE with the CircleCI CLI,
+# which reads it on stdin. Without the CLI, as in GitHub Actions or a local
+# run, the value is used as it is.
+subst() {
+    if command -v circleci > /dev/null 2>&1; then
+        printf '%s' "$1" | circleci env subst
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
 # Ensure CircleCI environment variables can be passed in as orb parameters
-ARCH=$(printf '%s' "${PARAM_ARCH}" | circleci env subst)
-CONFIG=$(printf '%s' "${PARAM_CONFIG}" | circleci env subst)
-IMAGE=$(printf '%s' "${PARAM_IMAGE}" | circleci env subst)
-LOG_LEVEL=$(printf '%s' "${PARAM_LOG_LEVEL}" | circleci env subst)
-OUTPUT_PATH=$(printf '%s' "${PARAM_OUTPUT_PATH}" | circleci env subst)
+ARCH=$(subst "${PARAM_ARCH}")
+CONFIG=$(subst "${PARAM_CONFIG}")
+IMAGE=$(subst "${PARAM_IMAGE}")
+LOG_LEVEL=$(subst "${PARAM_LOG_LEVEL}")
+OUTPUT_PATH=$(subst "${PARAM_OUTPUT_PATH}")
 
 # Computed parameters
 OUTPUT_DIR=$(dirname "${OUTPUT_PATH}")
@@ -21,6 +32,16 @@ echo "  LOG_LEVEL: ${LOG_LEVEL}"
 echo "  OUTPUT_DIR: ${OUTPUT_DIR}"
 echo "  OUTPUT_PATH: ${OUTPUT_PATH}"
 echo ""
+
+# CircleCI checks the command's log_level enum before the step runs; the
+# GitHub Action passes any string.
+case "${LOG_LEVEL}" in
+    debug | info | warn | error | fatal | panic) ;;
+    *)
+        echo "ERROR: log_level must be debug, info, warn, error, fatal or panic, not '${LOG_LEVEL}'." >&2
+        exit 1
+        ;;
+esac
 
 # Validate configuration YAML file path
 if [[ ! -f "${CONFIG}" ]]; then

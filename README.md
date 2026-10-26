@@ -2,27 +2,29 @@
 
 <img src="assets/logos/apko-orb-512px.png" width="256" alt="apko Orb logo: a purple octopus wrapped around rows of server racks under the sea, with snow-capped mountains above the waterline">
 
-# apko Orb for CircleCI
+# apko for CircleCI and GitHub Actions
 
 ### Build minimal, distroless, multi-arch container images without a Dockerfile, a Docker daemon or emulation.
 
 Install [apko](https://github.com/chainguard-dev/apko) and assemble OCI images straight from the APK packages listed in a YAML file<br>
-with two steps of CircleCI config.<br>
+with two steps of CircleCI config, or two GitHub Actions.<br>
 Strict SHA-512 verification by default · No `sudo` · No usage data collected by the orb
 
 [![CircleCI Build Status](https://circleci.com/gh/juburr/apko-orb.svg?style=shield "CircleCI Build Status")](https://circleci.com/gh/juburr/apko-orb)
+[![GitHub Actions Status](https://github.com/juburr/apko-orb/actions/workflows/actions.yml/badge.svg?branch=main "GitHub Actions Status")](https://github.com/juburr/apko-orb/actions/workflows/actions.yml)
 [![CircleCI Orb Version](https://badges.circleci.com/orbs/juburr/apko-orb.svg)](https://circleci.com/developer/orbs/orb/juburr/apko-orb)
 [![GitHub License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 [![CircleCI Community](https://img.shields.io/badge/community-CircleCI%20Discuss-343434.svg)](https://discuss.circleci.com/c/ecosystem/orbs)
 
+![CircleCI orb and GitHub Actions](https://img.shields.io/badge/CI-CircleCI%20%7C%20GitHub%20Actions-F97316?style=for-the-badge)
 ![Multi-arch images without emulation](https://img.shields.io/badge/multi--arch-no%20emulation-7C3AED?style=for-the-badge)
-![amd64 and arm64 executors](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-0EA5E9?style=for-the-badge&logo=linux&logoColor=white)
+![amd64 and arm64 executors and runners](https://img.shields.io/badge/arch-amd64%20%7C%20arm64-0EA5E9?style=for-the-badge&logo=linux&logoColor=white)
 ![SHA-512 verified by default](https://img.shields.io/badge/SHA--512-strict%20by%20default-16A34A?style=for-the-badge)
 ![No sudo required](https://img.shields.io/badge/sudo-not%20required-DB2777?style=for-the-badge)
 
-**[Quick Start](#-quick-start)** · **[Features](#-why-apko-orb)** · **[Multi-Arch](#-multi-architecture-images)** · **[Local APKs](#-installing-packages-from-a-local-signed-repository)** · **[Commands](#-commands)** · **[Security](#-secure-by-design)**
+**[Quick Start](#-quick-start)** · **[Features](#-why-apko-orb)** · **[Multi-Arch](#-multi-architecture-images)** · **[Local APKs](#-installing-packages-from-a-local-signed-repository)** · **[CircleCI Commands](#-circleci-commands)** · **[GitHub Actions](#-github-actions)** · **[Security](#-secure-by-design)**
 
-<sub>An unofficial, community-maintained orb. [Contributions are welcome!](#-contributing)</sub>
+<sub>An unofficial, community-maintained CircleCI orb and set of GitHub Actions. [Contributions are welcome!](#-contributing)</sub>
 
 </div>
 
@@ -56,7 +58,7 @@ By default, every apko binary is checked against a SHA-512 table built into the 
 </td>
 <td width="33%" valign="top">
 🦾 <b>amd64 and arm64 executors</b><br><br>
-Picks the right apko build for x86_64 executors and CircleCI Arm resource classes, cached per version and architecture so repeat runs skip the download.
+Picks the right apko build for x86_64 executors, CircleCI Arm resource classes and GitHub's arm64 runners, cached per version and architecture so repeat runs skip the download.
 </td>
 </tr>
 </table>
@@ -122,13 +124,13 @@ archs:
   - arm64
 ```
 
-**2. Add the orb** to `.circleci/config.yml`:
+**2. Add the steps to your pipeline.** On CircleCI, add the orb to `.circleci/config.yml`:
 
 ```yaml
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@1.0.0
+  apko: juburr/apko-orb@1.1.0
 
 jobs:
   build-image:
@@ -154,13 +156,39 @@ workflows:
       - build-image
 ```
 
-**3. Push.** The job writes `build/my-app.tar`, an OCI image tarball with one image per architecture, then loads it into Docker and runs the `amd64` image. Swap in your own packages and image name. From there, scan the image, publish it, or keep it with `store_artifacts`.
+On GitHub Actions, use the `install` and `build` actions in a workflow, such as `.github/workflows/build.yml`:
+
+```yaml
+name: Build image
+
+on: push
+
+jobs:
+  build-image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: juburr/apko-orb/actions/install@v1.1.0
+      - uses: juburr/apko-orb/actions/build@v1.1.0
+        with:
+          config: apko.yaml
+          image: ghcr.io/my-org/my-app:latest
+          output_path: build/my-app.tar
+      - name: Smoke test image
+        run: |
+          docker load --input build/my-app.tar
+          docker run --rm ghcr.io/my-org/my-app:latest-amd64 busybox echo "hello from apko"
+```
+
+See [GitHub Actions](#-github-actions) for how the actions map to the orb's commands.
+
+**3. Push.** The job writes `build/my-app.tar`, an OCI image tarball with one image per architecture, then loads it into Docker and runs the `amd64` image. Swap in your own packages and image name. From there, scan the image, publish it, or keep it with `store_artifacts` (or `actions/upload-artifact`).
 
 > [!TIP]
 > Upgrading from 0.4.0 or earlier? `build`'s `config_path` and `image_uri` parameters are now `config` and `image`, and `install` refuses apko versions it has no checksum for. See [Upgrading](#-upgrading).
 
 > [!TIP]
-> String parameters are passed through `circleci env subst`, so they can use environment variables. For example, `image: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit.
+> On CircleCI, string parameters are passed through `circleci env subst`, so they can use environment variables. For example, `image: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit. On GitHub Actions, use an expression instead: `image: ghcr.io/my-org/my-app:${{ github.sha }}`.
 
 > [!NOTE]
 > `build` never pushes to a registry, and `docker load` tags each architecture's image with an architecture suffix, such as `ghcr.io/my-org/my-app:latest-amd64`, even when you build only one architecture.
@@ -196,7 +224,7 @@ contents:
 
 The companion [melange orb](https://github.com/juburr/melange-orb) installs melange with the same checksum verification, and its [Building Packages](https://github.com/juburr/melange-orb#-building-packages) section covers runners and where the signed packages land. See the [`local_signed_repository`](src/examples/local_signed_repository.yml) usage example for a complete job that uses both orbs.
 
-## 🧰 Commands
+## 🧰 CircleCI Commands
 
 ### `apko/install`
 
@@ -223,6 +251,33 @@ Builds an image with `apko build` and writes it to `output_path`. The image is n
 
 Environment variables are expanded in `install`'s `version` and `install_path`, and in `build`'s `config`, `image`, `output_path` and `arch`. `log_level` is an enum, so CircleCI checks its value before any step runs and it can't take a variable.
 
+## ⚡ GitHub Actions
+
+Each of the orb's commands has a GitHub Action of the same name. The actions run the same scripts as the orb, so they install, verify and build the same way, and take the same inputs with the same defaults.
+
+| Action | Orb command | Inputs |
+| --- | --- | --- |
+| `juburr/apko-orb/actions/install` | [`apko/install`](#apkoinstall) | `version`, `install_path`, `verify_checksums`, `caching` |
+| `juburr/apko-orb/actions/build` | [`apko/build`](#apkobuild) | `config`, `image`, `output_path` (required), `arch`, `log_level` |
+
+The [Quick Start](#-quick-start) shows a complete workflow. To build packages with melange first and install them from a local signed repository, the companion [melange-orb](https://github.com/juburr/melange-orb#-github-actions) has an `install` action too:
+
+```yaml
+      - uses: juburr/apko-orb/actions/install@v1.1.0
+      - uses: juburr/melange-orb/actions/install@v1.2.0
+```
+
+How they differ from the orb's commands:
+
+- **Versions.** An action is referenced by the repository's release tag, such as `v1.1.0`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.1.0`.
+- **Environment variables.** The orb expands `$NAME` in its string parameters with the CircleCI CLI, which GitHub's runners don't have, so the actions take values as they are. Use GitHub's expressions instead, such as `image: ghcr.io/my-org/my-app:${{ github.sha }}`. A leading `~` in `install_path` is still the home directory.
+- **`log_level`.** CircleCI checks the orb's enum before any step runs. The action's input is a plain string, which the build script checks before running apko.
+- **Caching.** `caching` stores the verified release with [`actions/cache`](https://github.com/actions/cache), with the same key ingredients as the orb (apko version, CPU architecture, home directory). The cache is restored before the install and saved right after it, and the release is verified again when restored. It counts toward the repository's GitHub Actions cache storage.
+- **`PATH`.** `install` puts `install_path` on the `PATH` of later steps through `GITHUB_PATH`.
+- **Runners.** GitHub-hosted Linux runners have Docker, so you can load and run the image right after building it. CI builds the test images on `ubuntu-24.04` and `ubuntu-24.04-arm`, builds a multi-arch image, and installs a melange-built package from a local signed repository.
+
+The actions are composite actions in [`actions/`](actions), next to the orb's source. Each passes its inputs to the orb's script as environment variables, and [`actions/run_script.sh`](actions/run_script.sh) gives the script what CircleCI would: a `BASH_ENV` file for the values it hands to later steps, which it then passes on through `GITHUB_PATH` and `GITHUB_ENV`.
+
 ## 📦 Upgrading
 
 v1.0.0 renames two `build` parameters. The values they take and the build itself are unchanged.
@@ -245,7 +300,7 @@ Behavior changes:
 - **Least Privilege**: Installs to a user-owned directory by default, with no `sudo` usage anywhere in this orb.
 - **Integrity**: SHA-512 checksum validation of downloaded binaries, on by default and failing closed: an apko version this orb has no checksum for is refused, not installed unverified, and a binary that can't run on the executor never replaces an existing install. See [Checksum Verification](#-checksum-verification) for the `known_versions` and `false` opt-outs.
 - **Provenance**: Installs directly from apko's official [releases page](https://github.com/chainguard-dev/apko/releases/) on GitHub. No third-party websites, domains, or proxies are used.
-- **Confidentiality**: All secrets and environment variables are handled in accordance with CircleCI's [security recommendations](https://circleci.com/docs/security-recommendations/) and [best practices](https://circleci.com/docs/orbs-best-practices/).
+- **Confidentiality**: All secrets and environment variables are handled in accordance with CircleCI's [security recommendations](https://circleci.com/docs/security-recommendations/) and [best practices](https://circleci.com/docs/orbs-best-practices/). The GitHub Actions pass inputs to the scripts as environment variables, never pasting them into a script, and pin the actions they use (`actions/cache`) to a commit SHA.
 - **Privacy**: No usage data of any kind is collected or shipped back to the orb developer.
 
 > [!IMPORTANT]
@@ -263,6 +318,8 @@ Linux executors on `x86_64` (amd64) and `aarch64`/`arm64` (arm64), including Cir
 `install` needs bash 4 or newer, `curl` or `wget`, `awk`, `tar`, `gzip`, and the standard coreutils, including `mktemp` and, when it verifies, `sha512sum`. CI runs both commands on the Docker executor (`cimg/base`) and on amd64 and arm64 machine executors (`ubuntu-2404:current`).
 
 The download cache is keyed by apko version, executor architecture and home directory, so amd64 and arm64 jobs never share a cached binary. On executors whose `PATH` doesn't already include `install_path` (for example, machine executors), `install` adds it for later steps through `BASH_ENV`.
+
+The [GitHub Actions](#-github-actions) run on GitHub-hosted `ubuntu-24.04` (amd64) and `ubuntu-24.04-arm` (arm64) runners, which CI covers, and on self-hosted Linux runners with the same tools.
 
 ## 🔐 Checksum Verification
 
@@ -291,13 +348,15 @@ Hosts to allow (HTTPS, port 443) when running on a locked-down or self-hosted ru
 | `packages.wolfi.dev` | `build` with Wolfi-based configurations | apko fetches the signing key, the `APKINDEX.tar.gz` index and the packages, and requests `/os/apk-configuration` for key discovery |
 | Any other repository or keyring URL in your configuration | `build` | Depends on your apko configuration. Local repository and key paths need no network access. |
 
+With `caching`, the GitHub `install` action also reaches GitHub's cache service through `actions/cache`. GitHub-hosted runners always can; a self-hosted runner needs the hosts GitHub lists for [communication with GitHub](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners#communication-between-self-hosted-runners-and-github).
+
 ## 🤝 Contributing
 
 This is an unofficial, community-maintained orb, and contributions are welcome! Bug reports, feature ideas and pull requests all help.
 
 - **Found a bug or have an idea?** [Open an issue](https://github.com/juburr/apko-orb/issues).
 - **Need a newer apko release?** Generate its checksums with `src/scripts/install_hash.sh -v <version>`, paste them into the `sha512sums` table in [`src/scripts/install.sh`](src/scripts/install.sh), and open a pull request. The script checks each asset against the SHA-256 checksums apko publishes with the release (`checksums.txt`) and needs bash 4 or newer, `curl`, `awk`, `sed`, `tar`, `gzip` and the standard coreutils, including `mktemp`, `sha256sum` and `sha512sum`. For a release with nothing published to check against, `-c` takes a checksum from another official source (a SHA-1 one also needs `sha1sum`), or `NONE`; it never overrides what the release did publish.
-- **Before opening a pull request**, run `yamllint .`, `shellcheck src/scripts/*.sh`, `bash src/tests/install_test.sh`, `bash src/tests/env-subst.sh` and `bash src/tests/shell_conventions_test.sh`. They run offline; CI runs them too, along with the orb linter and the build tests on amd64 and arm64.
+- **Before opening a pull request**, run `yamllint .`, `shellcheck src/scripts/*.sh`, `bash src/tests/install_test.sh`, `bash src/tests/env-subst.sh`, `bash src/tests/shell_conventions_test.sh` and `bash src/tests/actions_test.sh`. They run offline; CI runs them too, along with the orb linter and the build tests on amd64 and arm64, with the orb's commands on CircleCI and the actions on GitHub's runners. A change to a command's parameters needs the same change to its action in `actions/`, which `actions_test.sh` checks.
 
 ## 🎨 Logo
 
