@@ -1,0 +1,228 @@
+# Tests the GitHub Actions in actions/ on GitHub's own runners, as
+# .circleci/test-deploy.yml tests the orb's commands on CircleCI. Each job
+# runs the actions from this checkout (uses: ./actions/...), so a pull
+# request tests its own changes.
+name: GitHub Actions
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run the offline tests
+        run: |
+          for test in src/tests/actions_test.sh src/tests/install_test.sh src/tests/env-subst.sh src/tests/shell_conventions_test.sh; do
+            echo "=== ${test}"
+            bash "${test}"
+          done
+
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./actions/install
+      - name: Verify the install
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          version=$(grep -A3 '^  version:' src/commands/install.yml | sed -n 's/^    default: "\(.*\)"$/\1/p')
+          [[ "$(command -v apko)" == "${HOME}/bin/apko" ]]
+          apko version | tee "${RUNNER_TEMP}/version.log"
+          grep -F "${version}" "${RUNNER_TEMP}/version.log"
+          grep -E "Platform:[[:space:]]+${PLATFORM}" "${RUNNER_TEMP}/version.log"
+      # The first install saved the release to the cache, so this one
+      # restores it. It goes to a directory of its own, which later steps
+      # find first on the PATH.
+      - uses: ./actions/install
+        with:
+          install_path: ${{ runner.temp }}/second
+      - name: Verify the second install comes first on the PATH
+        env:
+          SECOND: ${{ runner.temp }}/second
+        run: |
+          [[ "$(command -v apko)" == "${SECOND}/apko" ]]
+          apko version
+      - name: Install an unlisted version, which must fail
+        id: unlisted
+        continue-on-error: true
+        uses: ./actions/install
+        with:
+          version: 0.0.1
+          caching: false
+          install_path: ${{ runner.temp }}/unlisted
+      - name: Verify it failed before installing anything
+        env:
+          OUTCOME: ${{ steps.unlisted.outcome }}
+          UNLISTED: ${{ runner.temp }}/unlisted
+        run: |
+          [[ "${OUTCOME}" == failure ]]
+          [[ ! -e "${UNLISTED}/apko" ]]
+
+  # A fresh runner with the release's download hosts blocked installs from
+  # the cache the install job saved, which only works if the cache is used.
+  install-from-cache:
+    needs: install
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Block the download hosts
+        run: |
+          echo "127.0.0.1 github.com objects.githubusercontent.com release-assets.githubusercontent.com" | sudo tee -a /etc/hosts
+          if curl -sSf --max-time 10 -o /dev/null https://github.com; then
+            echo "github.com is still reachable."
+            exit 1
+          fi
+      - uses: ./actions/install
+      - name: Verify the install
+        run: |
+          version=$(grep -A3 '^  version:' src/commands/install.yml | sed -n 's/^    default: "\(.*\)"$/\1/p')
+          apko version | grep -F "${version}"
+
+  # Builds the amd64 test image on both architectures: apko assembles images
+  # without running code for the target architecture. The amd64 runner also
+  # loads and runs it.
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./actions/install
+      - uses: ./actions/build
+        with:
+          config: src/tests/gdal-runtime.yaml
+          image: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
+          output_path: new-directory/gdal-runtime.tar
+      - name: Load the built image
+        run: |
+          docker load --input new-directory/gdal-runtime.tar
+          # apko suffixes loaded tags with the image architecture.
+          IMAGE=ghcr.io/juburr/apko-orb/gdal-runtime-test:latest-amd64
+          IMAGE_USER=$(docker image inspect --format '{{.Config.User}}' "${IMAGE}")
+          echo "Image user: ${IMAGE_USER}"
+          if [[ "${IMAGE_USER}" != "65532" ]]; then
+            echo "Expected the image to run as UID 65532"
+            exit 1
+          fi
+      - name: Run the built image
+        if: runner.arch == 'X64'
+        run: docker run --rm ghcr.io/juburr/apko-orb/gdal-runtime-test:latest-amd64 gdalinfo --version
+
+  # apko assembles each architecture without emulation, so an amd64 runner
+  # can produce the arm64 image too.
+  multi-arch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./actions/install
+      - uses: ./actions/build
+        with:
+          arch: amd64,arm64
+          config: src/tests/multi-arch.yaml
+          image: multi-arch-test:latest
+          log_level: info
+          output_path: multi-arch/image.tar
+      - name: Verify the image index platforms
+        run: |
+          PLATFORMS=$(tar -xOf multi-arch/image.tar index.json | jq -r '[.manifests[].platform.architecture] | sort | join(",")')
+          echo "Index platforms: ${PLATFORMS}"
+          if [[ "${PLATFORMS}" != "amd64,arm64" ]]; then
+            echo "Expected an image index with amd64 and arm64 manifests"
+            exit 1
+          fi
+      - name: Load and run the built images
+        run: |
+          docker load --input multi-arch/image.tar
+          for ARCH in amd64 arm64; do
+            ACTUAL=$(docker image inspect --format '{{.Architecture}}' "multi-arch-test:latest-${ARCH}")
+            echo "multi-arch-test:latest-${ARCH} architecture: ${ACTUAL}"
+            if [[ "${ACTUAL}" != "${ARCH}" ]]; then
+              echo "Unexpected architecture for the ${ARCH} image"
+              exit 1
+            fi
+          done
+          docker run --rm multi-arch-test:latest-amd64 busybox echo "amd64 image runs"
+
+  # Builds a product APK with melange, signs it and its index with an
+  # ephemeral key, then installs it from the build-local repository with
+  # apko. melange comes from the companion melange-orb's install action.
+  local-repository:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./actions/install
+      - uses: juburr/melange-orb/actions/install@95a73caf0feebdd9b2480bf94ec64ca210f764b0 # v1.2.0
+        with:
+          version: 0.61.2
+          verify_checksums: strict
+      - name: Build a signed APK with an ephemeral key
+        run: |
+          melange keygen
+          melange build src/tests/local-repository/melange.yaml \
+            --arch x86_64 \
+            --runner docker \
+            --signing-key melange.rsa \
+            --out-dir packages
+      - name: Reject the repository without its key
+        run: |
+          grep -v 'melange.rsa.pub' src/tests/local-repository/apko.yaml > "${RUNNER_TEMP}/apko-without-key.yaml"
+          if apko build "${RUNNER_TEMP}/apko-without-key.yaml" local-repository-test:untrusted "${RUNNER_TEMP}/untrusted.tar" > "${RUNNER_TEMP}/untrusted.log" 2>&1; then
+            echo "apko installed from a repository whose signing key is not in the keyring"
+            exit 1
+          fi
+          grep 'no signature with known key' "${RUNNER_TEMP}/untrusted.log"
+      - uses: ./actions/build
+        with:
+          config: src/tests/local-repository/apko.yaml
+          image: local-repository-test:latest
+          log_level: info
+          output_path: local-repository/image.tar
+      - name: Run the built image
+        run: |
+          docker load --input local-repository/image.tar
+          OUTPUT=$(docker run --rm local-repository-test:latest-amd64)
+          echo "${OUTPUT}"
+          if [[ "${OUTPUT}" != "hello from a local signed apk" ]]; then
+            echo "Unexpected output from the locally built package"
+            exit 1
+          fi

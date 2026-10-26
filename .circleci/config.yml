@@ -17,11 +17,21 @@ jobs:
       - run:
           name: Run install contract tests
           command: bash src/tests/install_test.sh
+  test-actions:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - run:
+          name: Check the GitHub Actions against the orb's commands
+          command: bash src/tests/actions_test.sh
 
 workflows:
   lint-pack:
     jobs:
       - test-install:
+          filters: *filters
+      - test-actions:
           filters: *filters
       - orb-tools/lint:
           filters: *filters
@@ -37,5 +47,5 @@ workflows:
           pipeline_number: << pipeline.number >>
           vcs_type: << pipeline.project.type >>
           orb_name: apko-orb
-          requires: [test-install, orb-tools/lint, orb-tools/pack, orb-tools/review, shellcheck/check]
+          requires: [test-install, test-actions, orb-tools/lint, orb-tools/pack, orb-tools/review, shellcheck/check]
           filters: *filters
