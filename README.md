@@ -373,5 +373,5 @@ Need the logo for a slide deck, blog post, or internal developer portal? PNGs wi
   <br>
   <sub>Distroless images from a YAML file. If this orb helps your team, a ⭐ helps others find it.</sub>
   <br>
-  <sub><a href="#apko-orb-for-circleci">Back to top ↑</a></sub>
+  <sub><a href="#apko-for-circleci-and-github-actions">Back to top ↑</a></sub>
 </div>
