@@ -22,7 +22,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@1.1.1
+    apko: juburr/apko-orb@1.1.2
     melange: juburr/melange-orb@1.0.0
   jobs:
     build-images:

@@ -130,7 +130,7 @@ archs:
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@1.1.1
+  apko: juburr/apko-orb@1.1.2
 
 jobs:
   build-image:
@@ -168,8 +168,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: juburr/apko-orb/actions/install@v1.1.1
-      - uses: juburr/apko-orb/actions/build@v1.1.1
+      - uses: juburr/apko-orb/actions/install@v1.1.2
+      - uses: juburr/apko-orb/actions/build@v1.1.2
         with:
           config: apko.yaml
           image: ghcr.io/my-org/my-app:latest
@@ -263,13 +263,13 @@ Each of the orb's commands has a GitHub Action of the same name. The actions run
 The [Quick Start](#-quick-start) shows a complete workflow. To build packages with melange first and install them from a local signed repository, the companion [melange-orb](https://github.com/juburr/melange-orb#-github-actions) has an `install` action too:
 
 ```yaml
-      - uses: juburr/apko-orb/actions/install@v1.1.1
+      - uses: juburr/apko-orb/actions/install@v1.1.2
       - uses: juburr/melange-orb/actions/install@v1.2.0
 ```
 
 How they differ from the orb's commands:
 
-- **Versions.** An action is referenced by the repository's release tag, such as `v1.1.1`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.1.1`.
+- **Versions.** An action is referenced by the repository's release tag, such as `v1.1.2`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.1.2`.
 - **Environment variables.** The orb expands `$NAME` in its string parameters with the CircleCI CLI, which GitHub's runners don't have, so the actions take values as they are. Use GitHub's expressions instead, such as `image: ghcr.io/my-org/my-app:${{ github.sha }}`. A leading `~` in `install_path` is still the home directory.
 - **`log_level`.** CircleCI checks the orb's enum before any step runs. The action's input is a plain string, which the build script checks before running apko.
 - **Caching.** `caching` stores the verified release with [`actions/cache`](https://github.com/actions/cache), with the same key ingredients as the orb (apko version, CPU architecture, home directory). The cache is restored before the install and saved right after it, and the release is verified again when restored. It counts toward the repository's GitHub Actions cache storage.
@@ -279,6 +279,8 @@ How they differ from the orb's commands:
 The actions are composite actions in [`actions/`](actions), next to the orb's source. Each passes its inputs to the orb's script as environment variables, and [`actions/run_script.sh`](actions/run_script.sh) gives the script what CircleCI would: a `BASH_ENV` file for the values it hands to later steps, which it then passes on through `GITHUB_PATH` and `GITHUB_ENV`.
 
 ## 📦 Upgrading
+
+Upgrading from v1.1.1 to v1.1.2? Nothing changes for CircleCI pipelines. Two fixes to the GitHub Actions: they no longer trace the step's environment in a job that traces every step (`SHELLOPTS=xtrace`, or `set -x` in its `BASH_ENV`), where a secret could reach the log in a form GitHub doesn't mask; and they pass on every variable a command exports, even one the step already had.
 
 Upgrading from v1.1.0 to v1.1.1? Nothing changes for pipelines or workflows: v1.1.1 only fixes a link in this README.
 
