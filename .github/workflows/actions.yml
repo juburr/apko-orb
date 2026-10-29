@@ -191,7 +191,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./actions/install
-      - uses: juburr/melange-orb/actions/install@95a73caf0feebdd9b2480bf94ec64ca210f764b0 # v1.2.0
+      - uses: juburr/melange-orb/actions/install@136b1dca5ed286f93b657d63fb363375e70fb252 # v1.2.2
         with:
           version: 0.61.2
           verify_checksums: strict
