@@ -10,7 +10,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@1.2.0
+    apko: juburr/apko-orb@1.2.1
     cosign: juburr/cosign-orb@1.1.0
   jobs:
     publish-image:
