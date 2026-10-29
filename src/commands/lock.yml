@@ -1,0 +1,70 @@
+description: >
+  Resolves the packages an apko configuration installs with apko lock, and
+  writes them, with their versions and checksums, the repositories and the
+  keys, to a lock file. Pass the file to build or publish as lockfile, and
+  every build installs exactly those packages until the lock file changes.
+  apko marks lock as hidden while it gathers feedback on it.
+parameters:
+  config:
+    type: string
+    description: >
+      Path to the apko image configuration YAML file, for example apko.yaml.
+      Environment variables are expanded.
+  output:
+    type: string
+    default: ""
+    description: >
+      Path of the lock file to write, passed as --output; missing parent directories are created. Leave empty for
+      apko's default, the configuration's path with .lock.json in place of its extension (apko.lock.json for
+      apko.yaml). Environment variables are expanded.
+  arch:
+    type: string
+    default: ""
+    description: >
+      Architectures to resolve packages for, passed to apko's --arch flag, separated by commas, spaces or newlines
+      (e.g. "amd64,arm64"). Overrides the "archs" list in the configuration file. Leave empty to use the
+      configuration file, or every architecture apko supports when it lists none. Environment variables are
+      expanded.
+  keyring_append:
+    type: string
+    default: ""
+    description: >
+      Public keys to trust besides the configuration's keyring, as paths or URLs, separated by commas, spaces or
+      newlines, such as melange.rsa.pub. Each is passed as --keyring-append. Environment variables are expanded.
+  repository_append:
+    type: string
+    default: ""
+    description: >
+      APK repositories to resolve from besides the configuration's, as paths or URLs, separated by commas, spaces
+      or newlines, such as packages. Each is passed as --repository-append. Environment variables are expanded.
+  cache_dir:
+    type: string
+    default: ""
+    description: >
+      Directory for apko's cache of APK indexes and keys, passed as --cache-dir. Leave empty for apko's default
+      cache directory. Environment variables are expanded.
+  log_level:
+    type: enum
+    enum: ["debug", "info", "warn", "error", "fatal", "panic"]
+    default: "info"
+    description: Logging level to use.
+  extra_args:
+    type: string
+    default: ""
+    description: >
+      Further arguments for apko lock, such as --include-paths=base. They are split like shell words, but nothing
+      in them is expanded or run. --output is refused. Environment variables are expanded.
+steps:
+  - run:
+      name: Lock apko packages
+      environment:
+        PARAM_ARCH: << parameters.arch >>
+        PARAM_CACHE_DIR: << parameters.cache_dir >>
+        PARAM_CONFIG: << parameters.config >>
+        PARAM_EXTRA_ARGS: << parameters.extra_args >>
+        PARAM_KEYRING_APPEND: << parameters.keyring_append >>
+        PARAM_LOG_LEVEL: << parameters.log_level >>
+        PARAM_OUTPUT: << parameters.output >>
+        PARAM_REPOSITORY_APPEND: << parameters.repository_append >>
+        SCRIPT_APKO_LIB: << include(scripts/lib/apko.sh) >>
+      command: << include(scripts/lock.sh) >>

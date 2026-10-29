@@ -1,40 +1,118 @@
 name: Build an apko image
 description: >
-  Builds an image with apko build and writes it to output_path. The image is
-  not pushed to a registry, and building needs no Docker daemon. Run the
+  Builds an image with apko build and writes it to output_path, as an OCI image
+  tarball or an OCI image layout. The image is not pushed to a registry; the
+  publish action builds and pushes. Building needs no Docker daemon. Run the
   install action first. The GitHub Actions twin of the orb's build command.
 author: juburr
 
 inputs:
-  arch:
-    description: >
-      Architectures to build, passed to apko's --arch flag as a
-      comma-separated list (e.g. "amd64,arm64", or "host"). Overrides the
-      "archs" list in the configuration file. Leave empty to use the
-      configuration file.
-    default: ""
   config:
-    description: Path to the apko image configuration YAML file, for example apko.yaml.
+    description: >
+      Path to the apko image configuration YAML file, for example apko.yaml.
     required: true
   image:
     description: >
       Image reference recorded in the output, passed to apko as its <tag>
       argument, for example ghcr.io/org/app:1.0. The image is not pushed.
-      Loading the tarball with docker load tags each architecture's image
-      with this reference plus an architecture suffix, for example
+      Loading the tarball with docker load tags each architecture's image with
+      this reference plus an architecture suffix, for example
       ghcr.io/org/app:1.0-amd64.
     required: true
+  output_path:
+    description: >
+      Where apko writes the image. Normally the path of an OCI image tarball
+      file to create, for example build/app.tar; missing parent directories are
+      created. If the path is an existing directory, apko writes an OCI image
+      layout into that directory instead of a tarball.
+    required: true
+  arch:
+    description: >
+      Architectures to build, passed to apko's --arch flag, separated by
+      commas, spaces or newlines (e.g. "amd64,arm64", or "host"). Overrides the
+      "archs" list in the configuration file. Leave empty to use the
+      configuration file, or every architecture apko supports when it lists
+      none.
+    default: ""
+  lockfile:
+    description: >
+      Path to a lock file the lock action wrote, passed as --lockfile: apko
+      installs exactly the package versions it lists. Leave empty to install
+      the newest versions the repositories offer.
+    default: ""
+  build_date:
+    description: >
+      Date and time in RFC 3339, such as 2025-01-31T12:00:00Z, passed as
+      --build-date. The image's creation time is this date or the newest
+      installed package's build time, whichever is later. Leave empty for the
+      newest package's build time, so that the same packages give the same
+      image.
+    default: ""
+  vcs:
+    description: >
+      Detect the Git repository that holds the configuration file, and record
+      its URL and commit in the image's org.opencontainers.image.source and
+      org.opencontainers.image.revision annotations. false passes --vcs=false.
+    default: "true"
+  sbom:
+    description: >
+      Write SPDX SBOMs of the image: sbom-<arch>.spdx.json for each
+      architecture and sbom-index.spdx.json for the index. false passes
+      --sbom=false.
+    default: "true"
+  sbom_path:
+    description: >
+      Directory to write the SBOMs to, created when missing, passed as
+      --sbom-path. Leave empty to write them to the working directory, as apko
+      does.
+    default: ""
+  keyring_append:
+    description: >
+      Public keys to trust besides the configuration's keyring, as paths or
+      URLs, separated by commas, spaces or newlines, such as melange.rsa.pub.
+      Each is passed as --keyring-append.
+    default: ""
+  repository_append:
+    description: >
+      APK repositories to install from besides the configuration's, as paths or
+      URLs, separated by commas, spaces or newlines, such as packages. Each is
+      passed as --repository-append. A tagged repository, such as "@local
+      ./packages", goes in the configuration file.
+    default: ""
+  package_append:
+    description: >
+      Packages to install besides the configuration's, separated by commas,
+      spaces or newlines, such as busybox or curl=8.11.0-r0. Each is passed as
+      --package-append.
+    default: ""
+  annotations:
+    description: >
+      OCI annotations for the image and its index, one key:value per line, such
+      as org.opencontainers.image.source:https://github.com/myorg/myapp. Values
+      can hold spaces and commas. Each is passed as --annotations.
+    default: ""
+  cache_dir:
+    description: >
+      Directory for apko's cache of APK indexes, keys and packages, passed as
+      --cache-dir. Leave empty for apko's default cache directory. Keep it
+      between jobs with save_cache and restore_cache, or fill it once for
+      offline builds.
+    default: ""
+  offline:
+    description: >
+      Build without the network (--offline): every index, key and package must
+      already be in the cache, as an earlier build or lock with the same
+      cache_dir leaves them.
+    default: "false"
   log_level:
     description: >
       Logging level to use: debug, info, warn, error, fatal or panic.
     default: debug
-  output_path:
+  extra_args:
     description: >
-      Where apko writes the image. Normally the path of an OCI image tarball
-      file to create, for example build/app.tar; missing parent directories
-      are created. If the path is an existing directory, apko writes an OCI
-      image layout into that directory instead of a tarball.
-    required: true
+      Further arguments for apko build, such as --include-paths=base. They are
+      split like shell words, but nothing in them is expanded or run.
+    default: ""
 
 runs:
   using: composite
@@ -42,9 +120,23 @@ runs:
     - name: Build apko image
       shell: bash
       env:
+        PARAM_ANNOTATIONS: ${{ inputs.annotations }}
         PARAM_ARCH: ${{ inputs.arch }}
+        PARAM_BUILD_DATE: ${{ inputs.build_date }}
+        PARAM_CACHE_DIR: ${{ inputs.cache_dir }}
         PARAM_CONFIG: ${{ inputs.config }}
+        PARAM_EXTRA_ARGS: ${{ inputs.extra_args }}
         PARAM_IMAGE: ${{ inputs.image }}
+        PARAM_KEYRING_APPEND: ${{ inputs.keyring_append }}
+        PARAM_LOCKFILE: ${{ inputs.lockfile }}
         PARAM_LOG_LEVEL: ${{ inputs.log_level }}
+        PARAM_OFFLINE: ${{ inputs.offline }}
         PARAM_OUTPUT_PATH: ${{ inputs.output_path }}
-      run: bash "${GITHUB_ACTION_PATH}/../run_script.sh" "${GITHUB_ACTION_PATH}/../../src/scripts/build.sh"
+        PARAM_PACKAGE_APPEND: ${{ inputs.package_append }}
+        PARAM_REPOSITORY_APPEND: ${{ inputs.repository_append }}
+        PARAM_SBOM: ${{ inputs.sbom }}
+        PARAM_SBOM_PATH: ${{ inputs.sbom_path }}
+        PARAM_VCS: ${{ inputs.vcs }}
+      run: >-
+        bash "${GITHUB_ACTION_PATH}/../run_script.sh" "${GITHUB_ACTION_PATH}/../../src/scripts/build.sh"
+        "SCRIPT_APKO_LIB=${GITHUB_ACTION_PATH}/../../src/scripts/lib/apko.sh"

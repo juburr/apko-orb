@@ -1,68 +1,59 @@
 #!/bin/bash
+#
+# Builds an image with apko build, for the build command, and writes it to
+# output_path: an OCI image tarball, or an OCI image layout when output_path
+# is an existing directory. Nothing is pushed. With SBOMs on, apko writes one
+# per architecture and one for the index, to sbom_path or the working
+# directory.
 
 set -euo pipefail
 
-# subst VALUE: expands environment variables in VALUE with the CircleCI CLI,
-# which reads it on stdin. Without the CLI, as in GitHub Actions or a local
-# run, the value is used as it is.
-subst() {
-    if command -v circleci > /dev/null 2>&1; then
-        printf '%s' "$1" | circleci env subst
-    else
-        printf '%s\n' "$1"
-    fi
-}
-
-# Ensure CircleCI environment variables can be passed in as orb parameters
-ARCH=$(subst "${PARAM_ARCH}")
-CONFIG=$(subst "${PARAM_CONFIG}")
-IMAGE=$(subst "${PARAM_IMAGE}")
-LOG_LEVEL=$(subst "${PARAM_LOG_LEVEL}")
-OUTPUT_PATH=$(subst "${PARAM_OUTPUT_PATH}")
-
-# Computed parameters
-OUTPUT_DIR=$(dirname "${OUTPUT_PATH}")
-
-# Print command parameters for debugging purposes.
-echo "Running Apko build with the following parameters:"
-echo "  ARCH: ${ARCH:-(from configuration file)}"
-echo "  CONFIG: ${CONFIG}"
-echo "  IMAGE: ${IMAGE}"
-echo "  LOG_LEVEL: ${LOG_LEVEL}"
-echo "  OUTPUT_DIR: ${OUTPUT_DIR}"
-echo "  OUTPUT_PATH: ${OUTPUT_PATH}"
-echo ""
-
-# CircleCI checks the command's log_level enum before the step runs; the
-# GitHub Action passes any string.
-case "${LOG_LEVEL}" in
-    debug | info | warn | error | fatal | panic) ;;
-    *)
-        echo "ERROR: log_level must be debug, info, warn, error, fatal or panic, not '${LOG_LEVEL}'." >&2
-        exit 1
-        ;;
-esac
-
-# Validate configuration YAML file path
-if [[ ! -f "${CONFIG}" ]]; then
-    echo "ERROR: Configuration YAML does not exist at: ${CONFIG}" >&2
+if [[ -z "${SCRIPT_APKO_LIB:-}" ]]; then
+    echo "ERROR: SCRIPT_APKO_LIB is not set. The command passes the orb's lib/apko.sh in it." >&2
     exit 1
 fi
+eval "${SCRIPT_APKO_LIB}"
 
-# Create output directory if it does not yet exist
-if [[ -d "${OUTPUT_DIR}" ]]; then
-    echo "Output directory already exists: ${OUTPUT_DIR}"
-else
-    echo "Creating directory ${OUTPUT_DIR}..."
-    mkdir -p "${OUTPUT_DIR}"
-    echo "  Done."
+CONFIG=$(apko_subst "${PARAM_CONFIG}")
+IMAGE=$(apko_subst "${PARAM_IMAGE}")
+OUTPUT_PATH=$(apko_subst "${PARAM_OUTPUT_PATH}")
+ARCH=$(apko_subst "${PARAM_ARCH}")
+LOG_LEVEL=$(apko_subst "${PARAM_LOG_LEVEL}")
+EXTRA_ARGS=$(apko_subst "${PARAM_EXTRA_ARGS}")
+
+apko_log_level "${LOG_LEVEL}"
+if [[ ! -f "${CONFIG}" ]]; then
+    echo "ERROR: The apko configuration ${CONFIG} does not exist." >&2
+    exit 1
+fi
+if [[ -z "${IMAGE}" ]]; then
+    echo "ERROR: image must not be empty. apko records it in the output, such as ghcr.io/myorg/myapp:1.0.0." >&2
+    exit 1
+fi
+if [[ -z "${OUTPUT_PATH}" ]]; then
+    echo "ERROR: output_path must not be empty, such as build/image.tar." >&2
+    exit 1
+fi
+apko_arch_args "${ARCH}"
+apko_words extra_args "${EXTRA_ARGS}"
+apko_require
+apko_image_options
+
+# apko writes a tarball into an existing directory, but creates none.
+OUTPUT_DIR=$(dirname -- "${OUTPUT_PATH}")
+if [[ ! -d "${OUTPUT_DIR}" ]]; then
+    echo "Creating ${OUTPUT_DIR} for the image."
+    mkdir -p -- "${OUTPUT_DIR}"
 fi
 
-# Build image
-BUILD_ARGS=(--log-level "${LOG_LEVEL}")
-if [[ -n "${ARCH}" ]]; then
-    BUILD_ARGS+=(--arch "${ARCH}")
-fi
+ARGS=(build "--log-level=${LOG_LEVEL}")
+# These arrays can be empty, and bash before 4.4 treats an empty array as
+# unset under set -u, so they are expanded only when they have elements.
+ARGS+=(${APKO_ARCH_ARGS[@]+"${APKO_ARCH_ARGS[@]}"})
+ARGS+=(${APKO_IMAGE_OPTIONS[@]+"${APKO_IMAGE_OPTIONS[@]}"})
+ARGS+=(${APKO_WORDS[@]+"${APKO_WORDS[@]}"})
+# After --, a value that starts with "-" is not read as a flag.
+ARGS+=(-- "${CONFIG}" "${IMAGE}" "${OUTPUT_PATH}")
 
-echo "Building container image with apko..."
-apko build "${BUILD_ARGS[@]}" "${CONFIG}" "${IMAGE}" "${OUTPUT_PATH}"
+apko_run apko "${ARGS[@]}"
+echo "Wrote the image to ${OUTPUT_PATH}."
