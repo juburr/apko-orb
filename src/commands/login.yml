@@ -1,0 +1,31 @@
+description: >
+  Stores credentials for a registry with apko login, where docker and crane
+  store them (~/.docker/config.json), for the publish command. The username
+  and password come from environment variables, such as a context's. apko
+  does not contact the registry here, so wrong credentials fail the first
+  publish instead.
+parameters:
+  registry:
+    type: string
+    description: >
+      Registry host, with an optional port, such as ghcr.io, docker.io or
+      localhost:5000. Environment variables are expanded.
+  username:
+    type: env_var_name
+    default: REGISTRY_USERNAME
+    description: Environment variable that holds the username.
+  password:
+    type: env_var_name
+    default: REGISTRY_PASSWORD
+    description: >
+      Environment variable that holds the password or access token. It
+      reaches apko on stdin, never on its command line.
+steps:
+  - run:
+      name: Log in to << parameters.registry >> with apko
+      environment:
+        PARAM_PASSWORD: << parameters.password >>
+        PARAM_REGISTRY: << parameters.registry >>
+        PARAM_USERNAME: << parameters.username >>
+        SCRIPT_APKO_LIB: << include(scripts/lib/apko.sh) >>
+      command: << include(scripts/login.sh) >>

@@ -1,0 +1,43 @@
+description: >
+  Build a multi-arch image and push it to a registry with publish, then sign
+  the pushed index by digest with cosign-orb. login stores the registry
+  credentials from two context variables where apko, docker and cosign read
+  them. publish pushes each architecture's image and the index under every
+  tag, exports the index's digest in APKO_DIGEST and its reference by digest
+  in APKO_DIGEST_REF, and keeps the SPDX SBOMs in sbom_path. Building and
+  pushing need no Docker daemon.
+
+usage:
+  version: 2.1
+  orbs:
+    apko: juburr/apko-orb@1.2.0
+    cosign: juburr/cosign-orb@1.1.0
+  jobs:
+    publish-image:
+      docker:
+        - image: cimg/base:current-22.04
+      steps:
+        - checkout
+        - apko/install
+        - apko/login:
+            registry: ghcr.io
+            username: GHCR_USERNAME
+            password: GHCR_TOKEN
+        - apko/publish:
+            config: apko.yaml
+            tags: ghcr.io/my-org/my-app:${CIRCLE_SHA1} ghcr.io/my-org/my-app:latest
+            arch: amd64,arm64
+            sbom_path: sboms
+        - cosign/install
+        - cosign/sign:
+            image: ${APKO_DIGEST_REF}
+        - store_artifacts:
+            path: sboms
+  workflows:
+    publish:
+      jobs:
+        - publish-image:
+            context: image-publishing
+            filters:
+              branches:
+                only: main

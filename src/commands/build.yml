@@ -1,39 +1,138 @@
 description: >
-  Builds an image with apko build. The image is written to output_path; it is not pushed to a registry.
+  Builds an image with apko build and writes it to output_path, as an OCI
+  image tarball or an OCI image layout. The image is not pushed to a
+  registry; the publish command builds and pushes. Building needs no Docker
+  daemon.
 parameters:
-  arch:
-    type: string
-    default: ""
-    description: >
-      Architectures to build, passed to apko's --arch flag as a comma-separated list (e.g. "amd64,arm64", or "host").
-      Overrides the "archs" list in the configuration file. Leave empty to use the configuration file.
   config:
     type: string
-    description: Path to the apko image configuration YAML file, for example apko.yaml.
+    description: >
+      Path to the apko image configuration YAML file, for example apko.yaml.
+      Environment variables are expanded.
   image:
     type: string
     description: >
       Image reference recorded in the output, passed to apko as its <tag> argument, for example ghcr.io/org/app:1.0.
       The image is not pushed. Loading the tarball with docker load tags each architecture's image with this
-      reference plus an architecture suffix, for example ghcr.io/org/app:1.0-amd64.
-  log_level:
-    type: enum
-    enum: ["debug", "info", "warn", "error", "fatal", "panic"]
-    default: "debug"
-    description: Logging level to use.
+      reference plus an architecture suffix, for example ghcr.io/org/app:1.0-amd64. Environment variables are
+      expanded.
   output_path:
     type: string
     description: >
       Where apko writes the image. Normally the path of an OCI image tarball file to create, for example build/app.tar;
       missing parent directories are created. If the path is an existing directory, apko writes an OCI image layout
-      into that directory instead of a tarball.
+      into that directory instead of a tarball. Environment variables are expanded.
+  arch:
+    type: string
+    default: ""
+    description: >
+      Architectures to build, passed to apko's --arch flag, separated by commas, spaces or newlines (e.g.
+      "amd64,arm64", or "host"). Overrides the "archs" list in the configuration file. Leave empty to use the
+      configuration file, or every architecture apko supports when it lists none. Environment variables are
+      expanded.
+  lockfile:
+    type: string
+    default: ""
+    description: >
+      Path to a lock file the lock command wrote, passed as --lockfile: apko installs exactly the package versions
+      it lists. Leave empty to install the newest versions the repositories offer. Environment variables are
+      expanded.
+  build_date:
+    type: string
+    default: ""
+    description: >
+      Date and time in RFC 3339, such as 2025-01-31T12:00:00Z, passed as --build-date. The image's creation time is
+      this date or the newest installed package's build time, whichever is later. Leave empty for the newest
+      package's build time, so that the same packages give the same image. Environment variables are expanded.
+  vcs:
+    type: boolean
+    default: true
+    description: >
+      Detect the Git repository that holds the configuration file, and record its URL and commit in the image
+      index's org.opencontainers.image.source and org.opencontainers.image.revision annotations. false passes
+      --vcs=false.
+  sbom:
+    type: boolean
+    default: true
+    description: >
+      Write SPDX SBOMs of the image: sbom-<arch>.spdx.json for each architecture and sbom-index.spdx.json for the
+      index. false passes --sbom=false.
+  sbom_path:
+    type: string
+    default: ""
+    description: >
+      Directory to write the SBOMs to, created when missing, passed as --sbom-path. Leave empty to write them to the
+      working directory, as apko does. Environment variables are expanded.
+  keyring_append:
+    type: string
+    default: ""
+    description: >
+      Public keys to trust besides the configuration's keyring, as paths or URLs, separated by commas, spaces or
+      newlines, such as melange.rsa.pub. Each is passed as --keyring-append. Environment variables are expanded.
+  repository_append:
+    type: string
+    default: ""
+    description: >
+      APK repositories to install from besides the configuration's, as paths or URLs, separated by commas, spaces
+      or newlines, such as packages. Each is passed as --repository-append. A tagged repository, such as
+      "@local ./packages", goes in the configuration file. Environment variables are expanded.
+  package_append:
+    type: string
+    default: ""
+    description: >
+      Packages to install besides the configuration's, separated by commas, spaces or newlines, such as busybox or
+      curl=8.11.0-r0. Each is passed as --package-append. Environment variables are expanded.
+  annotations:
+    type: string
+    default: ""
+    description: >
+      OCI annotations for the image and its index, one key:value per line, such as
+      org.opencontainers.image.source:https://github.com/myorg/myapp. Values can hold spaces and commas. Each is
+      passed as --annotations. Environment variables are expanded.
+  cache_dir:
+    type: string
+    default: ""
+    description: >
+      Directory for apko's cache of APK indexes, keys and packages, passed as --cache-dir. Leave empty for apko's
+      default cache directory. Keep it between jobs with save_cache and restore_cache, or fill it once for offline
+      builds. Environment variables are expanded.
+  offline:
+    type: boolean
+    default: false
+    description: >
+      Build without the network (--offline): every index, key and package must already be in the cache, as an
+      earlier build or lock with the same cache_dir leaves them.
+  log_level:
+    type: enum
+    enum: ["debug", "info", "warn", "error", "fatal", "panic"]
+    default: "debug"
+    description: Logging level to use.
+  extra_args:
+    type: string
+    default: ""
+    description: >
+      Further arguments for apko build, such as --include-paths=base. They are split like shell words, but nothing
+      in them is expanded or run. Environment variables are expanded.
 steps:
   - run:
-      name: Build Apko Image
+      name: Build apko image
       environment:
+        PARAM_ANNOTATIONS: << parameters.annotations >>
         PARAM_ARCH: << parameters.arch >>
+        PARAM_BUILD_DATE: << parameters.build_date >>
+        PARAM_CACHE_DIR: << parameters.cache_dir >>
         PARAM_CONFIG: << parameters.config >>
+        PARAM_EXTRA_ARGS: << parameters.extra_args >>
         PARAM_IMAGE: << parameters.image >>
+        PARAM_KEYRING_APPEND: << parameters.keyring_append >>
+        PARAM_LOCKFILE: << parameters.lockfile >>
         PARAM_LOG_LEVEL: << parameters.log_level >>
+        PARAM_OFFLINE: << parameters.offline >>
         PARAM_OUTPUT_PATH: << parameters.output_path >>
+        PARAM_PACKAGE_APPEND: << parameters.package_append >>
+        PARAM_REPOSITORY_APPEND: << parameters.repository_append >>
+        PARAM_SBOM: << parameters.sbom >>
+        PARAM_SBOM_PATH: << parameters.sbom_path >>
+        PARAM_VCS: << parameters.vcs >>
+        SCRIPT_APKO_LIB: << include(scripts/lib/apko.sh) >>
       command: << include(scripts/build.sh) >>

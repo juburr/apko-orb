@@ -7,7 +7,7 @@
 ### Build minimal, distroless, multi-arch container images without a Dockerfile, a Docker daemon or emulation.
 
 Install [apko](https://github.com/chainguard-dev/apko) and assemble OCI images straight from the APK packages listed in a YAML file<br>
-with two steps of CircleCI config, or two GitHub Actions.<br>
+with two steps of CircleCI config, or two GitHub Actions, then lock their packages and push them to a registry.<br>
 Strict SHA-512 verification by default · No `sudo` · No usage data collected by the orb
 
 [![CircleCI Build Status](https://circleci.com/gh/juburr/apko-orb.svg?style=shield "CircleCI Build Status")](https://circleci.com/gh/juburr/apko-orb)
@@ -22,7 +22,7 @@ Strict SHA-512 verification by default · No `sudo` · No usage data collected b
 ![SHA-512 verified by default](https://img.shields.io/badge/SHA--512-strict%20by%20default-16A34A?style=for-the-badge)
 ![No sudo required](https://img.shields.io/badge/sudo-not%20required-DB2777?style=for-the-badge)
 
-**[Quick Start](#-quick-start)** · **[Features](#-why-apko-orb)** · **[Multi-Arch](#-multi-architecture-images)** · **[Local APKs](#-installing-packages-from-a-local-signed-repository)** · **[CircleCI Commands](#-circleci-commands)** · **[GitHub Actions](#-github-actions)** · **[Security](#-secure-by-design)**
+**[Quick Start](#-quick-start)** · **[Features](#-why-apko-orb)** · **[Multi-Arch](#-multi-architecture-images)** · **[Publishing](#-publishing-images)** · **[Lock Files](#-locking-package-versions)** · **[Local APKs](#-installing-packages-from-a-local-signed-repository)** · **[CircleCI Commands](#-circleci-commands)** · **[GitHub Actions](#-github-actions)** · **[Security](#-secure-by-design)**
 
 <sub>An unofficial, community-maintained CircleCI orb and set of GitHub Actions. [Contributions are welcome!](#-contributing)</sub>
 
@@ -40,7 +40,7 @@ apko assembles the image from the APK packages in your YAML file, so it holds th
 </td>
 <td width="33%" valign="top">
 🐳 <b>No Docker daemon to build</b><br><br>
-<code>apko/build</code> writes an OCI image tarball directly. You only need Docker if you want to load or run the image afterwards.
+<code>apko/build</code> writes an OCI image tarball and <code>apko/publish</code> pushes to a registry, both without Docker. You only need Docker if you want to load or run the image.
 </td>
 <td width="33%" valign="top">
 🐙 <b>Multi-arch, no emulation</b><br><br>
@@ -61,6 +61,20 @@ By default, every apko binary is checked against a SHA-512 table built into the 
 Picks the right apko build for x86_64 executors, CircleCI Arm resource classes and GitHub's arm64 runners, cached per version and architecture so repeat runs skip the download.
 </td>
 </tr>
+<tr>
+<td width="33%" valign="top">
+📤 <b>Push straight to a registry</b><br><br>
+<code>apko/publish</code> pushes every architecture's image and the image index in one step, then exports the index's digest, ready for signing. See <a href="#-publishing-images">Publishing Images</a>.
+</td>
+<td width="33%" valign="top">
+📌 <b>Locked package versions</b><br><br>
+<code>apko/lock</code> pins every package to an exact version and checksum. Build from the lock file, and the image only changes when you commit a new one. See <a href="#-locking-package-versions">Locking Package Versions</a>.
+</td>
+<td width="33%" valign="top">
+🧾 <b>SBOMs included</b><br><br>
+apko writes an SPDX SBOM for each architecture and one for the index. <code>sbom_path</code> puts them where your pipeline stores or scans them.
+</td>
+</tr>
 </table>
 
 ### 🧩 The Orb vs. a Hand-Rolled Script
@@ -79,22 +93,26 @@ flowchart LR
     gh["GitHub release"] --> sha{"SHA-512<br/>verified?"}
     sha -- yes --> bin["apko<br/>on PATH"]
     sha -- no --> stop["install fails"]
-    cfg["apko.yaml"] --> build["apko build"]
+    cfg["apko.yaml"] --> lock["apko lock"]
+    lock --> lockfile["apko.lock.json"]
+    cfg --> build["apko build<br/>or publish"]
+    lockfile -.-> build
     repos["Signed APK repositories<br/>Wolfi or local"] --> build
     bin --> build
     build --> tar["OCI image tarball<br/>one image per arch"]
+    build --> reg["Registry<br/>index digest exported"]
 
     classDef install fill:#0EA5E9,stroke:#0369A1,color:#FFFFFF
     classDef tool fill:#7C3AED,stroke:#4C1D95,color:#FFFFFF
     classDef good fill:#16A34A,stroke:#14532D,color:#FFFFFF
     classDef bad fill:#DC2626,stroke:#7F1D1D,color:#FFFFFF
     class gh,sha,bin install
-    class cfg,repos,build tool
-    class tar good
+    class cfg,repos,build,lock,lockfile tool
+    class tar,reg good
     class stop bad
 ```
 
-`apko/install` downloads apko straight from its official GitHub releases, verifies its SHA-512 checksum in the default `strict` mode shown here, and puts it on `PATH`. See [Checksum Verification](#-checksum-verification) for the other modes. `apko/build` reads your image configuration, installs the packages it lists from repositories whose indexes are signed by a key in its keyring (Wolfi, your own melange-built repository, or both), and writes an OCI image tarball with one image per architecture. Nothing is pushed: load it with `docker load`, scan it, publish it, or keep it with `store_artifacts`.
+`apko/install` downloads apko straight from its official GitHub releases, verifies its SHA-512 checksum in the default `strict` mode shown here, and puts it on `PATH`. See [Checksum Verification](#-checksum-verification) for the other modes. `apko/build` reads your image configuration, installs the packages it lists from repositories whose indexes are signed by a key in its keyring (Wolfi, your own melange-built repository, or both), and writes an OCI image tarball with one image per architecture. Nothing is pushed: load it with `docker load`, scan it, or keep it with `store_artifacts`. `apko/publish` builds the same way, pushes the images and their index to a registry instead, and exports the index's digest. `apko/lock` pins every package to an exact version, in a lock file both of them take as `lockfile`.
 
 ## 🚀 Quick Start
 
@@ -130,7 +148,7 @@ archs:
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@1.1.3
+  apko: juburr/apko-orb@1.2.0
 
 jobs:
   build-image:
@@ -168,8 +186,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: juburr/apko-orb/actions/install@v1.1.3
-      - uses: juburr/apko-orb/actions/build@v1.1.3
+      - uses: juburr/apko-orb/actions/install@v1.2.0
+      - uses: juburr/apko-orb/actions/build@v1.2.0
         with:
           config: apko.yaml
           image: ghcr.io/my-org/my-app:latest
@@ -182,7 +200,7 @@ jobs:
 
 See [GitHub Actions](#-github-actions) for how the actions map to the orb's commands.
 
-**3. Push.** The job writes `build/my-app.tar`, an OCI image tarball with one image per architecture, then loads it into Docker and runs the `amd64` image. Swap in your own packages and image name. From there, scan the image, publish it, or keep it with `store_artifacts` (or `actions/upload-artifact`).
+**3. Push.** The job writes `build/my-app.tar`, an OCI image tarball with one image per architecture, then loads it into Docker and runs the `amd64` image. Swap in your own packages and image name. From there, scan the image, keep it with `store_artifacts` (or `actions/upload-artifact`), or [publish it](#-publishing-images) to a registry.
 
 > [!TIP]
 > Upgrading from 0.4.0 or earlier? `build`'s `config_path` and `image_uri` parameters are now `config` and `image`, and `install` refuses apko versions it has no checksum for. See [Upgrading](#-upgrading).
@@ -191,7 +209,7 @@ See [GitHub Actions](#-github-actions) for how the actions map to the orb's comm
 > On CircleCI, string parameters are passed through `circleci env subst`, so they can use environment variables. For example, `image: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit. On GitHub Actions, use an expression instead: `image: ghcr.io/my-org/my-app:${{ github.sha }}`.
 
 > [!NOTE]
-> `build` never pushes to a registry, and `docker load` tags each architecture's image with an architecture suffix, such as `ghcr.io/my-org/my-app:latest-amd64`, even when you build only one architecture.
+> `build` never pushes to a registry (`publish` does), and `docker load` tags each architecture's image with an architecture suffix, such as `ghcr.io/my-org/my-app:latest-amd64`, even when you build only one architecture.
 
 ## 🐙 Multi-Architecture Images
 
@@ -200,6 +218,89 @@ apko assembles images without running code for the target architecture, so a sin
 - The output tarball contains an OCI image index. `docker load` loads one image per architecture, tagged with an architecture suffix such as `my-image:latest-amd64` and `my-image:latest-arm64`. Single-architecture builds are suffixed too.
 - It works in both directions: CI builds an `amd64,arm64` image on an amd64 Docker executor, and an `amd64` image on an arm64 machine executor.
 - Running an `arm64` image, for example in a smoke test, still requires an `arm64` executor or emulation.
+
+## 📤 Publishing Images
+
+`apko/publish` builds the image and pushes it in one step: each architecture's image to the repository of the first reference in `tags`, by digest, then the image index under every reference. It takes the same image options as `build`, and exports the index's digest (`APKO_DIGEST`) and its reference by digest (`APKO_DIGEST_REF`), so later steps sign or deploy exactly what was pushed.
+
+apko reads registry credentials where Docker stores them, in `~/.docker/config.json`. `apko/login` stores them there from two environment variables, handing apko the password on stdin; `docker login` works too.
+
+```yaml
+version: 2.1
+
+orbs:
+  apko: juburr/apko-orb@1.2.0
+  cosign: juburr/cosign-orb@1.1.0
+
+jobs:
+  publish-image:
+    docker:
+      - image: cimg/base:current-22.04
+    steps:
+      - checkout
+      - apko/install
+      - apko/login:
+          registry: ghcr.io
+          username: GHCR_USERNAME
+          password: GHCR_TOKEN
+      - apko/publish:
+          config: apko.yaml
+          tags: ghcr.io/my-org/my-app:${CIRCLE_SHA1} ghcr.io/my-org/my-app:latest
+          sbom_path: sboms
+      # cosign signs the index by digest, with the credentials login stored.
+      - cosign/install
+      - cosign/sign:
+          image: ${APKO_DIGEST_REF}
+      - store_artifacts:
+          path: sboms
+
+workflows:
+  publish:
+    jobs:
+      - publish-image:
+          context: image-publishing
+```
+
+On GitHub Actions, apko also reads `GITHUB_TOKEN` for `ghcr.io`, so a job with `packages: write` needs no login step:
+
+```yaml
+jobs:
+  publish-image:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: juburr/apko-orb/actions/install@v1.2.0
+      - uses: juburr/apko-orb/actions/publish@v1.2.0
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          config: apko.yaml
+          tags: ghcr.io/my-org/my-app:${{ github.sha }} ghcr.io/my-org/my-app:latest
+      - run: echo "Pushed ${APKO_DIGEST_REF}"
+```
+
+For another registry, use the `login` action first, with the secrets in its step's `env`. `image_refs` writes every pushed reference to a file, one per line: each architecture's image by digest, then the index. See the [`publish`](src/examples/publish.yml) usage example.
+
+## 📌 Locking Package Versions
+
+Without a lock file, every build installs the newest versions the repositories offer, so the same `apko.yaml` can give a different image tomorrow. `apko/lock` resolves every package, for every architecture, to an exact version and checksum, and writes them, with the repositories and keys, to a lock file: `apko.lock.json` for `apko.yaml`. Commit it, and pass it to `build` or `publish`:
+
+```yaml
+      - apko/build:
+          config: apko.yaml
+          lockfile: apko.lock.json
+          image: ghcr.io/my-org/my-app:latest
+          output_path: build/my-app.tar
+```
+
+apko then installs exactly the locked packages, and the image only changes when the lock file does. A scheduled job that runs `apko/lock` and opens a pull request with the result turns package updates into reviewable diffs; the [`lock_file`](src/examples/lock_file.yml) usage example has one that stores the new lock file for review.
+
+- Lock every architecture you build. A lock file made with `arch: amd64` can't build `arm64`.
+- apko still marks `lock` as a hidden command while it gathers feedback on it. `build`'s and `publish`'s `--lockfile` read the file it writes.
+- With `cache_dir`, apko keeps the indexes, keys and packages it downloads in that directory. Keep it with `save_cache`, or pass it on through a workspace, and a later `build` with `offline: true` needs no network at all. CI locks a test image, builds it into a cache, then builds it again offline from the cache and checks that it holds the locked versions.
 
 ## 🔏 Installing Packages From A Local Signed Repository
 
@@ -228,7 +329,7 @@ The companion [melange orb](https://github.com/juburr/melange-orb) installs mela
 
 ### `apko/install`
 
-Installs apko for Linux on amd64 or arm64, matching the executor's CPU. In the default `strict` mode it verifies the SHA-512 checksum first and refuses versions it has no checksum for; see [Checksum Verification](#-checksum-verification) for the opt-outs. Run it before `apko/build`. Needs bash 4 or newer on the executor.
+Installs apko for Linux on amd64 or arm64, matching the executor's CPU. In the default `strict` mode it verifies the SHA-512 checksum first and refuses versions it has no checksum for; see [Checksum Verification](#-checksum-verification) for the opt-outs. Run it before the other commands. Needs bash 4 or newer on the executor.
 
 | Parameter | Default | Description |
 | --- | --- | --- |
@@ -246,10 +347,63 @@ Builds an image with `apko build` and writes it to `output_path`. The image is n
 | `config` | *required* | Path to the apko image configuration YAML file, e.g. `apko.yaml`. |
 | `image` | *required* | Image reference recorded in the output (apko's `<tag>` argument), e.g. `ghcr.io/my-org/my-app:latest`. The image is not pushed. `docker load` tags each architecture's image with this reference plus an architecture suffix, e.g. `ghcr.io/my-org/my-app:latest-amd64`. |
 | `output_path` | *required* | Path of the OCI image tarball to write, e.g. `build/my-app.tar`. Missing parent directories are created. If the path is an existing directory, apko writes an OCI image layout into it instead. |
-| `arch` | *(empty)* | Comma-separated architectures passed to apko's `--arch`, e.g. `amd64,arm64` or `host`. Overrides `archs` in the configuration file; leave it empty to use the file's list. |
+| `arch` | *(empty)* | Architectures passed to apko's `--arch`, separated by commas, spaces or newlines, e.g. `amd64,arm64`, `host` or `all`. Overrides `archs` in the configuration file; leave it empty to use the file's list. |
+| `lockfile` | *(empty)* | Lock file from [`apko/lock`](#apkolock) (`--lockfile`): apko installs exactly the package versions it lists. |
+| `build_date` | *(empty)* | RFC 3339 date and time (`--build-date`), e.g. `2025-01-31T12:00:00Z`. The image's creation time is this date or the newest package's build time, whichever is later. Empty: the newest package's build time. |
+| `vcs` | `true` | Record the Git repository's URL and commit in the image index's `org.opencontainers.image.source` and `.revision` annotations. `false` passes `--vcs=false`. |
+| `sbom` | `true` | Write SPDX SBOMs: `sbom-<arch>.spdx.json` per architecture and `sbom-index.spdx.json`. `false` passes `--sbom=false`. |
+| `sbom_path` | *(empty)* | Directory for the SBOMs (`--sbom-path`), created when missing. Empty: the working directory, as apko does. |
+| `keyring_append` | *(empty)* | Extra public keys to trust, paths or URLs, separated by commas, spaces or newlines (`--keyring-append`). |
+| `repository_append` | *(empty)* | Extra APK repositories, paths or URLs, separated by commas, spaces or newlines (`--repository-append`). A tagged repository such as `@local ./packages` goes in the configuration file. |
+| `package_append` | *(empty)* | Extra packages, separated by commas, spaces or newlines (`--package-append`), e.g. `busybox,curl=8.11.0-r0`. |
+| `annotations` | *(empty)* | OCI annotations for the image and its index, one `key:value` per line (`--annotations`), e.g. `org.opencontainers.image.source:https://github.com/my-org/my-app`. Values can hold spaces and commas. |
+| `cache_dir` | *(empty)* | Directory for apko's cache of indexes, keys and packages (`--cache-dir`). Empty: apko's default cache directory. |
+| `offline` | `false` | Build without the network (`--offline`), from what an earlier build left in `cache_dir`. |
 | `log_level` | `debug` | apko's `--log-level`: `debug`, `info`, `warn`, `error`, `fatal` or `panic`. |
+| `extra_args` | *(empty)* | Further `apko build` arguments, e.g. `--include-paths=base`, split like shell words. Nothing in them is expanded or run: a `$(...)`, backtick or shell operator outside quotes fails the step. |
 
-Environment variables are expanded in `install`'s `version` and `install_path`, and in `build`'s `config`, `image`, `output_path` and `arch`. `log_level` is an enum, so CircleCI checks its value before any step runs and it can't take a variable.
+A parameter left at its default adds no flag, so apko's own default applies, and apko releases older than a flag still build.
+
+### `apko/publish`
+
+Builds an image with `apko publish` and pushes it to a registry under every reference in `tags`, then exports the image index's digest and its reference by digest for later steps. Each architecture's image goes to the repository of the first reference, by digest. apko reads credentials from `~/.docker/config.json`, where [`apko/login`](#apkologin) or `docker login` stores them, and for `ghcr.io` also from `GITHUB_TOKEN`. See [Publishing Images](#-publishing-images).
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `config` | *required* | Path to the apko image configuration YAML file. |
+| `tags` | *required* | Image references to push to, separated by commas, spaces or newlines, e.g. `ghcr.io/my-org/my-app:1.0.0 ghcr.io/my-org/my-app:latest`. |
+| `arch`, `lockfile`, `build_date`, `vcs`, `sbom`, `keyring_append`, `repository_append`, `package_append`, `annotations`, `cache_dir`, `offline` | | As for [`apko/build`](#apkobuild). |
+| `sbom_path` | *(empty)* | Directory to keep the SBOMs in (`--sbom-path`), created when missing. Empty: `apko publish` discards them. |
+| `image_refs` | *(empty)* | File to write the pushed references to, one per line: each architecture's image by digest, then the index. Missing parent directories are created. |
+| `digest_env_var` | `APKO_DIGEST` | Variable to export the index's digest in, e.g. `sha256:2f9a…`. |
+| `digest_ref_env_var` | `APKO_DIGEST_REF` | Variable to export the index's reference by digest in, e.g. `ghcr.io/my-org/my-app@sha256:2f9a…`. |
+| `log_level` | `info` | apko's `--log-level`. |
+| `extra_args` | *(empty)* | Further `apko publish` arguments, split like shell words. `--image-refs` and `--local` are refused: the command reads the pushed digest from the first, and the second would push nothing. |
+
+### `apko/lock`
+
+Resolves the packages an apko configuration installs with `apko lock`, and writes them, with their versions and checksums, the repositories and the keys, to a lock file for `build`'s and `publish`'s `lockfile`. See [Locking Package Versions](#-locking-package-versions).
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `config` | *required* | Path to the apko image configuration YAML file. |
+| `output` | *(empty)* | Lock file to write (`--output`). Missing parent directories are created. Empty: the configuration's path with `.lock.json` in place of its extension, e.g. `apko.lock.json` for `apko.yaml`. |
+| `arch` | *(empty)* | Architectures to lock, as for `build`. Leave it empty to use the configuration file's `archs`. |
+| `keyring_append`, `repository_append`, `cache_dir` | *(empty)* | As for [`apko/build`](#apkobuild). |
+| `log_level` | `info` | apko's `--log-level`. |
+| `extra_args` | *(empty)* | Further `apko lock` arguments, split like shell words. `--output` is refused. |
+
+### `apko/login`
+
+Stores credentials for a registry with `apko login` in `~/.docker/config.json`, where `apko/publish`, docker and crane read them. The username and password come from environment variables, such as a context's; the password reaches apko on stdin, never on its command line. apko doesn't contact the registry here, so wrong credentials fail the first publish instead.
+
+| Parameter | Default | Description |
+| --- | --- | --- |
+| `registry` | *required* | Registry host, with an optional port, e.g. `ghcr.io` or `localhost:5000`. |
+| `username` | `REGISTRY_USERNAME` | Environment variable that holds the username. |
+| `password` | `REGISTRY_PASSWORD` | Environment variable that holds the password or access token. |
+
+Environment variables are expanded in every string parameter of `install`, `build`, `publish` and `lock`, and in `login`'s `registry`, so `tags: ghcr.io/my-org/my-app:${CIRCLE_SHA1}` tags each image with its commit. `log_level` and the booleans are checked by CircleCI before any step runs, so they can't take a variable, and `username`, `password` and the `_env_var` parameters name variables rather than holding values.
 
 ## ⚡ GitHub Actions
 
@@ -258,27 +412,36 @@ Each of the orb's commands has a GitHub Action of the same name. The actions run
 | Action | Orb command | Inputs |
 | --- | --- | --- |
 | `juburr/apko-orb/actions/install` | [`apko/install`](#apkoinstall) | `version`, `install_path`, `verify_checksums`, `caching` |
-| `juburr/apko-orb/actions/build` | [`apko/build`](#apkobuild) | `config`, `image`, `output_path` (required), `arch`, `log_level` |
+| `juburr/apko-orb/actions/build` | [`apko/build`](#apkobuild) | `config`, `image`, `output_path` (required), `arch`, `lockfile`, `build_date`, `vcs`, `sbom`, `sbom_path`, `keyring_append`, `repository_append`, `package_append`, `annotations`, `cache_dir`, `offline`, `log_level`, `extra_args` |
+| `juburr/apko-orb/actions/publish` | [`apko/publish`](#apkopublish) | `config`, `tags` (required), the image options `build` takes, `image_refs`, `digest_env_var`, `digest_ref_env_var`, `log_level`, `extra_args` |
+| `juburr/apko-orb/actions/lock` | [`apko/lock`](#apkolock) | `config` (required), `output`, `arch`, `keyring_append`, `repository_append`, `cache_dir`, `log_level`, `extra_args` |
+| `juburr/apko-orb/actions/login` | [`apko/login`](#apkologin) | `registry` (required), `username`, `password` |
 
 The [Quick Start](#-quick-start) shows a complete workflow. To build packages with melange first and install them from a local signed repository, the companion [melange-orb](https://github.com/juburr/melange-orb#-github-actions) has an `install` action too:
 
 ```yaml
-      - uses: juburr/apko-orb/actions/install@v1.1.3
+      - uses: juburr/apko-orb/actions/install@v1.2.0
       - uses: juburr/melange-orb/actions/install@v1.2.2
 ```
 
 How they differ from the orb's commands:
 
-- **Versions.** An action is referenced by the repository's release tag, such as `v1.1.3`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.1.3`.
+- **Versions.** An action is referenced by the repository's release tag, such as `v1.2.0`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.2.0`.
 - **Environment variables.** The orb expands `$NAME` in its string parameters with the CircleCI CLI, which GitHub's runners don't have, so the actions take values as they are. Use GitHub's expressions instead, such as `image: ghcr.io/my-org/my-app:${{ github.sha }}`. A leading `~` in `install_path` is still the home directory.
-- **`log_level`.** CircleCI checks the orb's enum before any step runs. The action's input is a plain string, which the build script checks before running apko.
+- **`log_level` and the booleans.** CircleCI checks the orb's enums and booleans before any step runs. The actions' inputs are plain strings, which the scripts check before running apko: `log_level` must be one of apko's levels, and `vcs`, `sbom` and `offline` must be `true` or `false`.
+- **Credentials.** `login`'s `username` and `password` name variables the workflow sets in the `env` of the step that uses it, from secrets. `publish` exports `APKO_DIGEST` and `APKO_DIGEST_REF` to later steps through `GITHUB_ENV`, and reads `GITHUB_TOKEN` for `ghcr.io` when its step's `env` sets it.
 - **Caching.** `caching` stores the verified release with [`actions/cache`](https://github.com/actions/cache), with the same key ingredients as the orb (apko version, CPU architecture, home directory). The cache is restored before the install and saved right after it, and the release is verified again when restored. It counts toward the repository's GitHub Actions cache storage.
 - **`PATH`.** `install` puts `install_path` on the `PATH` of later steps through `GITHUB_PATH`.
-- **Runners.** GitHub-hosted Linux runners have Docker, so you can load and run the image right after building it. CI builds the test images on `ubuntu-24.04` and `ubuntu-24.04-arm`, builds a multi-arch image, and installs a melange-built package from a local signed repository.
+- **Runners.** GitHub-hosted Linux runners have Docker, so you can load and run the image right after building it. CI builds the test images on `ubuntu-24.04` and `ubuntu-24.04-arm`, builds a multi-arch image, installs a melange-built package from a local signed repository, locks a test image and builds it offline from the lock file, and publishes to a local registry that requires a login.
 
 The actions are composite actions in [`actions/`](actions), next to the orb's source. Each passes its inputs to the orb's script as environment variables, and [`actions/run_script.sh`](actions/run_script.sh) gives the script what CircleCI would: a `BASH_ENV` file for the values it hands to later steps, which it then passes on through `GITHUB_PATH` and `GITHUB_ENV`.
 
 ## 📦 Upgrading
+
+Upgrading from v1.1.3 to v1.2.0? Existing pipelines and workflows keep working: `build` gives apko the same options for the parameters it already had, now written as `--flag=value` and followed by `--`. v1.2.0 adds the [`publish`](#apkopublish), [`lock`](#apkolock) and [`login`](#apkologin) commands and actions, and new `build` parameters for apko's lock files, build date, VCS annotations, SBOMs, extra keys, repositories and packages, annotations, cache directory, offline builds and further arguments. Changes you may notice:
+- `build`'s step is now named `Build apko image`, and logs the apko command it runs instead of a list of its parameters.
+- `arch` takes architectures separated by spaces or newlines as well as commas, and a value that isn't a list of architecture names, such as `amd64;arm64`, fails the step before apko runs.
+- An empty `image` or `output_path` fails the step before apko runs, with an `ERROR:` naming the parameter.
 
 Upgrading from v1.1.2 to v1.1.3? Nothing changes for pipelines or workflows: v1.1.3 only moves the companion melange-orb in the [`local_signed_repository`](src/examples/local_signed_repository.yml) example and this README to its current release, 1.2.2.
 
@@ -306,7 +469,7 @@ Behavior changes:
 - **Least Privilege**: Installs to a user-owned directory by default, with no `sudo` usage anywhere in this orb.
 - **Integrity**: SHA-512 checksum validation of downloaded binaries, on by default and failing closed: an apko version this orb has no checksum for is refused, not installed unverified, and a binary that can't run on the executor never replaces an existing install. See [Checksum Verification](#-checksum-verification) for the `known_versions` and `false` opt-outs.
 - **Provenance**: Installs directly from apko's official [releases page](https://github.com/chainguard-dev/apko/releases/) on GitHub. No third-party websites, domains, or proxies are used.
-- **Confidentiality**: All secrets and environment variables are handled in accordance with CircleCI's [security recommendations](https://circleci.com/docs/security-recommendations/) and [best practices](https://circleci.com/docs/orbs-best-practices/). The GitHub Actions pass inputs to the scripts as environment variables, never pasting them into a script, and pin the actions they use (`actions/cache`) to a commit SHA.
+- **Confidentiality**: All secrets and environment variables are handled in accordance with CircleCI's [security recommendations](https://circleci.com/docs/security-recommendations/) and [best practices](https://circleci.com/docs/orbs-best-practices/). `login` reads the registry password from an environment variable you name and hands it to apko on stdin, never on a command line, and turns tracing off first, so a job that traces every step doesn't print it. The GitHub Actions pass inputs to the scripts as environment variables, never pasting them into a script, and pin the actions they use (`actions/cache`) to a commit SHA.
 - **Privacy**: No usage data of any kind is collected or shipped back to the orb developer.
 
 > [!IMPORTANT]
@@ -321,7 +484,7 @@ Linux executors on `x86_64` (amd64) and `aarch64`/`arm64` (arm64), including Cir
 | `x86_64` or `amd64` | `apko_<version>_linux_amd64.tar.gz` |
 | `aarch64` or `arm64` | `apko_<version>_linux_arm64.tar.gz` |
 
-`install` needs bash 4 or newer, `curl` or `wget`, `awk`, `tar`, `gzip`, and the standard coreutils, including `mktemp` and, when it verifies, `sha512sum`. CI runs both commands on the Docker executor (`cimg/base`) and on amd64 and arm64 machine executors (`ubuntu-2404:current`).
+`install` needs bash 4 or newer, `curl` or `wget`, `awk`, `tar`, `gzip`, and the standard coreutils, including `mktemp` and, when it verifies, `sha512sum`. CI runs `install` and `build` on the Docker executor (`cimg/base`) and on amd64 and arm64 machine executors (`ubuntu-2404:current`), `lock` and the offline build on the Docker executor, and `login` and `publish` against a local registry that requires a login, on an amd64 machine executor.
 
 The download cache is keyed by apko version, executor architecture and home directory, so amd64 and arm64 jobs never share a cached binary. On executors whose `PATH` doesn't already include `install_path` (for example, machine executors), `install` adds it for later steps through `BASH_ENV`.
 
@@ -351,8 +514,9 @@ Hosts to allow (HTTPS, port 443) when running on a locked-down or self-hosted ru
 | `github.com` | `install` | apko release download |
 | `release-assets.githubusercontent.com` | `install` | Where GitHub redirects release downloads |
 | `objects.githubusercontent.com` | `install` | GitHub's previous redirect target for release downloads; allow it as well so a change on GitHub's side doesn't break downloads |
-| `packages.wolfi.dev` | `build` with Wolfi-based configurations | apko fetches the signing key, the `APKINDEX.tar.gz` index and the packages, and requests `/os/apk-configuration` for key discovery |
-| Any other repository or keyring URL in your configuration | `build` | Depends on your apko configuration. Local repository and key paths need no network access. |
+| `packages.wolfi.dev` | `build`, `publish` and `lock` with Wolfi-based configurations | apko fetches the signing key, the `APKINDEX.tar.gz` index and the packages, and requests `/os/apk-configuration` for key discovery |
+| Any other repository or keyring URL in your configuration | `build`, `publish`, `lock` | Depends on your apko configuration. Local repository and key paths need no network access, and neither does a `build` with `offline: true`. |
+| The registry of each reference in `tags` | `publish` | Pushes the images and the image index. `login` only writes `~/.docker/config.json` and contacts nothing. |
 
 With `caching`, the GitHub `install` action also reaches GitHub's cache service through `actions/cache`. GitHub-hosted runners always can; a self-hosted runner needs the hosts GitHub lists for [communication with GitHub](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/about-self-hosted-runners#communication-between-self-hosted-runners-and-github).
 
@@ -362,7 +526,7 @@ This is an unofficial, community-maintained orb, and contributions are welcome! 
 
 - **Found a bug or have an idea?** [Open an issue](https://github.com/juburr/apko-orb/issues).
 - **Need a newer apko release?** Generate its checksums with `src/scripts/install_hash.sh -v <version>`, paste them into the `sha512sums` table in [`src/scripts/install.sh`](src/scripts/install.sh), and open a pull request. The script checks each asset against the SHA-256 checksums apko publishes with the release (`checksums.txt`) and needs bash 4 or newer, `curl`, `awk`, `sed`, `tar`, `gzip` and the standard coreutils, including `mktemp`, `sha256sum` and `sha512sum`. For a release with nothing published to check against, `-c` takes a checksum from another official source (a SHA-1 one also needs `sha1sum`), or `NONE`; it never overrides what the release did publish.
-- **Before opening a pull request**, run `yamllint .`, `shellcheck src/scripts/*.sh`, `bash src/tests/install_test.sh`, `bash src/tests/env-subst.sh`, `bash src/tests/shell_conventions_test.sh` and `bash src/tests/actions_test.sh`. They run offline; CI runs them too, along with the orb linter and the build tests on amd64 and arm64, with the orb's commands on CircleCI and the actions on GitHub's runners. A change to a command's parameters needs the same change to its action in `actions/`, which `actions_test.sh` checks.
+- **Before opening a pull request**, run `yamllint .`, `shellcheck src/scripts/*.sh src/scripts/lib/*.sh src/tests/*.sh`, `bash src/tests/install_test.sh`, `bash src/tests/commands_test.sh`, `bash src/tests/env-subst.sh`, `bash src/tests/shell_conventions_test.sh` and `bash src/tests/actions_test.sh`. They run offline; CI runs them too, along with the orb linter and the build, lock and publish tests on amd64 and arm64, with the orb's commands on CircleCI and the actions on GitHub's runners. A change to a command's parameters needs the same change to its action in `actions/`, which `actions_test.sh` checks.
 
 ## 🎨 Logo
 

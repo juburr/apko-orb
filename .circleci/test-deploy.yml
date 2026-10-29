@@ -160,6 +160,101 @@ jobs:
           image: ghcr.io/juburr/apko-orb/gdal-runtime-test:latest
           log_level: info
           output_path: new-directory/gdal-runtime.tar
+  # Locks the busybox test image's packages, builds it from the lock file into
+  # a cache directory, then builds it again offline from that cache, with
+  # annotations, a build date, no VCS annotations and an SBOM directory.
+  build-options-test:
+    docker:
+      - image: cimg/base:current-22.04
+    steps:
+      - checkout
+      - apko-orb/install
+      - apko-orb/lock:
+          config: src/tests/multi-arch.yaml
+          output: locks/multi-arch.lock.json
+          arch: amd64
+          cache_dir: apk-cache
+      - apko-orb/build:
+          config: src/tests/multi-arch.yaml
+          image: build-options-test:cached
+          output_path: cached/image.tar
+          arch: amd64
+          lockfile: locks/multi-arch.lock.json
+          cache_dir: apk-cache
+          log_level: info
+      - run:
+          name: Verify The Build From The Lock File
+          command: bash src/tests/verify_build_options.sh cached cached/image.tar locks/multi-arch.lock.json
+      - apko-orb/build:
+          config: src/tests/multi-arch.yaml
+          image: build-options-test:offline
+          output_path: offline/image.tar
+          arch: amd64
+          lockfile: locks/multi-arch.lock.json
+          cache_dir: apk-cache
+          offline: true
+          vcs: false
+          build_date: "2099-01-02T03:04:05Z"
+          sbom_path: offline/sboms
+          annotations: |
+            org.example.description:Built by apko-orb, for its "offline" test
+            org.example.team:platform
+          log_level: info
+      - run:
+          name: Verify The Offline Build
+          command: bash src/tests/verify_build_options.sh offline offline/image.tar locks/multi-arch.lock.json offline/sboms
+  # Logs in to a local registry that requires a login, publishes a two
+  # architecture image under two tags, and checks what the registry holds
+  # against what publish exported.
+  publish-test:
+    machine:
+      image: ubuntu-2404:current
+    environment:
+      REGISTRY_HOST: localhost:5000
+      REGISTRY_USERNAME: ci-user
+      REGISTRY_PASSWORD: ci-password
+    steps:
+      - checkout
+      - run:
+          name: Start A Registry That Requires A Login
+          command: |
+            # mirror.gcr.io serves the Docker Hub images without Docker Hub's anonymous pull limits.
+            # A pull from it can time out, so pull with retries before running them.
+            for image in mirror.gcr.io/library/httpd:2 mirror.gcr.io/library/registry:2; do
+              for attempt in 1 2 3; do
+                docker pull "${image}" && break
+                sleep $((attempt * 10))
+              done
+            done
+            mkdir -p /tmp/registry-auth
+            docker run --rm --entrypoint htpasswd mirror.gcr.io/library/httpd:2 -Bbn "${REGISTRY_USERNAME}" "${REGISTRY_PASSWORD}" \
+              > /tmp/registry-auth/htpasswd
+            docker run -d --name registry -p 5000:5000 -v /tmp/registry-auth:/auth \
+              -e REGISTRY_AUTH=htpasswd -e REGISTRY_AUTH_HTPASSWD_REALM=apko-orb-ci \
+              -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd mirror.gcr.io/library/registry:2
+            # A 401 means the registry is up and refuses anonymous requests.
+            for _ in $(seq 1 30); do
+              if [[ "$(curl -s -o /dev/null -w '%{http_code}' "http://${REGISTRY_HOST}/v2/")" == "401" ]]; then
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "FAIL: the registry did not start."
+            docker logs registry
+            exit 1
+      - apko-orb/install
+      - apko-orb/login:
+          registry: ${REGISTRY_HOST}
+      - apko-orb/publish:
+          config: src/tests/multi-arch.yaml
+          tags: ${REGISTRY_HOST}/apko-orb-ci/publish-test:latest ${REGISTRY_HOST}/apko-orb-ci/publish-test:v1
+          arch: amd64,arm64
+          image_refs: publish/refs.txt
+          sbom_path: publish/sboms
+      - run:
+          name: Verify The Published Image
+          command: |
+            bash src/tests/verify_publish.sh "${REGISTRY_HOST}/apko-orb-ci/publish-test" publish/refs.txt publish/sboms latest v1
   env-subst-test:
     docker:
       - image: cimg/base:current-22.04
@@ -185,6 +280,10 @@ workflows:
           filters: *filters
       - multi-arch-test:
           filters: *filters
+      - build-options-test:
+          filters: *filters
+      - publish-test:
+          filters: *filters
       - local-repository-test:
           filters: *filters
       - command-test-arm64:
@@ -203,11 +302,13 @@ workflows:
           # Ensure this job requires all test jobs and the pack job.
           requires:
             - orb-tools/pack
+            - build-options-test
             - command-test
             - command-test-arm64
             - env-subst-test
             - local-repository-test
             - shell-conventions-test
             - multi-arch-test
+            - publish-test
           context: orb-publishing
           filters: *release-filters

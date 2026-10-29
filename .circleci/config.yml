@@ -25,6 +25,14 @@ jobs:
       - run:
           name: Check the GitHub Actions against the orb's commands
           command: bash src/tests/actions_test.sh
+  test-commands:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - run:
+          name: Run the build, publish, lock and login tests against a stand-in apko
+          command: bash src/tests/commands_test.sh
 
 workflows:
   lint-pack:
@@ -32,6 +40,8 @@ workflows:
       - test-install:
           filters: *filters
       - test-actions:
+          filters: *filters
+      - test-commands:
           filters: *filters
       - orb-tools/lint:
           filters: *filters
@@ -47,5 +57,5 @@ workflows:
           pipeline_number: << pipeline.number >>
           vcs_type: << pipeline.project.type >>
           orb_name: apko-orb
-          requires: [test-install, test-actions, orb-tools/lint, orb-tools/pack, orb-tools/review, shellcheck/check]
+          requires: [test-install, test-actions, test-commands, orb-tools/lint, orb-tools/pack, orb-tools/review, shellcheck/check]
           filters: *filters

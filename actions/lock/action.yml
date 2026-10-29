@@ -1,0 +1,75 @@
+name: Lock the packages of an apko image
+description: >
+  Resolves the packages an apko configuration installs with apko lock, and
+  writes them, with their versions and checksums, the repositories and the
+  keys, to a lock file. Pass the file to the build or publish action as
+  lockfile, and every build installs exactly those packages until the lock file
+  changes. apko marks lock as hidden while it gathers feedback on it. Run the
+  install action first. The GitHub Actions twin of the orb's lock command.
+author: juburr
+
+inputs:
+  config:
+    description: >
+      Path to the apko image configuration YAML file, for example apko.yaml.
+    required: true
+  output:
+    description: >
+      Path of the lock file to write, passed as --output; missing parent
+      directories are created. Leave empty for apko's default, the
+      configuration's path with .lock.json in place of its extension
+      (apko.lock.json for apko.yaml).
+    default: ""
+  arch:
+    description: >
+      Architectures to resolve packages for, passed to apko's --arch flag,
+      separated by commas, spaces or newlines (e.g. "amd64,arm64"). Overrides
+      the "archs" list in the configuration file. Leave empty to use the
+      configuration file, or every architecture apko supports when it lists
+      none.
+    default: ""
+  keyring_append:
+    description: >
+      Public keys to trust besides the configuration's keyring, as paths or
+      URLs, separated by commas, spaces or newlines, such as melange.rsa.pub.
+      Each is passed as --keyring-append.
+    default: ""
+  repository_append:
+    description: >
+      APK repositories to resolve from besides the configuration's, as paths or
+      URLs, separated by commas, spaces or newlines, such as packages. Each is
+      passed as --repository-append.
+    default: ""
+  cache_dir:
+    description: >
+      Directory for apko's cache of APK indexes and keys, passed as
+      --cache-dir. Leave empty for apko's default cache directory.
+    default: ""
+  log_level:
+    description: >
+      Logging level to use: debug, info, warn, error, fatal or panic.
+    default: info
+  extra_args:
+    description: >
+      Further arguments for apko lock, such as --include-paths=base. They are
+      split like shell words, but nothing in them is expanded or run. --output
+      is refused.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Lock apko packages
+      shell: bash
+      env:
+        PARAM_ARCH: ${{ inputs.arch }}
+        PARAM_CACHE_DIR: ${{ inputs.cache_dir }}
+        PARAM_CONFIG: ${{ inputs.config }}
+        PARAM_EXTRA_ARGS: ${{ inputs.extra_args }}
+        PARAM_KEYRING_APPEND: ${{ inputs.keyring_append }}
+        PARAM_LOG_LEVEL: ${{ inputs.log_level }}
+        PARAM_OUTPUT: ${{ inputs.output }}
+        PARAM_REPOSITORY_APPEND: ${{ inputs.repository_append }}
+      run: >-
+        bash "${GITHUB_ACTION_PATH}/../run_script.sh" "${GITHUB_ACTION_PATH}/../../src/scripts/lock.sh"
+        "SCRIPT_APKO_LIB=${GITHUB_ACTION_PATH}/../../src/scripts/lib/apko.sh"

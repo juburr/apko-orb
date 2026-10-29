@@ -1,0 +1,38 @@
+name: Log in to a registry with apko
+description: >
+  Stores credentials for a registry with apko login, where docker and crane
+  store them (~/.docker/config.json), for the publish action. The username and
+  password come from environment variables the workflow sets from secrets in
+  the env of the step that uses this action. apko does not contact the registry
+  here, so wrong credentials fail the first publish instead. Run the install
+  action first. The GitHub Actions twin of the orb's login command.
+author: juburr
+
+inputs:
+  registry:
+    description: >
+      Registry host, with an optional port, such as ghcr.io, docker.io or
+      localhost:5000.
+    required: true
+  username:
+    description: >
+      Environment variable that holds the username.
+    default: REGISTRY_USERNAME
+  password:
+    description: >
+      Environment variable that holds the password or access token. It reaches
+      apko on stdin, never on its command line.
+    default: REGISTRY_PASSWORD
+
+runs:
+  using: composite
+  steps:
+    - name: Log in with apko
+      shell: bash
+      env:
+        PARAM_PASSWORD: ${{ inputs.password }}
+        PARAM_REGISTRY: ${{ inputs.registry }}
+        PARAM_USERNAME: ${{ inputs.username }}
+      run: >-
+        bash "${GITHUB_ACTION_PATH}/../run_script.sh" "${GITHUB_ACTION_PATH}/../../src/scripts/login.sh"
+        "SCRIPT_APKO_LIB=${GITHUB_ACTION_PATH}/../../src/scripts/lib/apko.sh"
