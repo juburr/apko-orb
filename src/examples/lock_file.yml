@@ -9,7 +9,7 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@1.2.0
+    apko: juburr/apko-orb@1.2.1
   jobs:
     build-image:
       docker:

@@ -148,7 +148,7 @@ archs:
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@1.2.0
+  apko: juburr/apko-orb@1.2.1
 
 jobs:
   build-image:
@@ -186,8 +186,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: juburr/apko-orb/actions/install@v1.2.0
-      - uses: juburr/apko-orb/actions/build@v1.2.0
+      - uses: juburr/apko-orb/actions/install@v1.2.1
+      - uses: juburr/apko-orb/actions/build@v1.2.1
         with:
           config: apko.yaml
           image: ghcr.io/my-org/my-app:latest
@@ -229,7 +229,7 @@ apko reads registry credentials where Docker stores them, in `~/.docker/config.j
 version: 2.1
 
 orbs:
-  apko: juburr/apko-orb@1.2.0
+  apko: juburr/apko-orb@1.2.1
   cosign: juburr/cosign-orb@1.1.0
 
 jobs:
@@ -272,8 +272,8 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v7
-      - uses: juburr/apko-orb/actions/install@v1.2.0
-      - uses: juburr/apko-orb/actions/publish@v1.2.0
+      - uses: juburr/apko-orb/actions/install@v1.2.1
+      - uses: juburr/apko-orb/actions/publish@v1.2.1
         env:
           GITHUB_TOKEN: ${{ github.token }}
         with:
@@ -304,7 +304,7 @@ apko then installs exactly the locked packages, and the image only changes when 
 
 ## 🔏 Installing Packages From A Local Signed Repository
 
-The `build` command can install your own melange-built APKs from a build-local repository signed with an ephemeral key (`melange keygen`). List the repository and public key in the apko configuration as paths relative to the job's working directory, and pin local packages with a repository tag:
+The `build` command can install your own melange-built APKs from a build-local repository signed with an ephemeral key, such as the one melange-orb's `keygen` command writes. List the repository and public key in the apko configuration as paths relative to the job's working directory, and pin local packages with a repository tag:
 
 ```yaml
 contents:
@@ -323,7 +323,7 @@ contents:
 - Every architecture in `archs` needs a matching directory in the local repository (for example `packages/x86_64` and `packages/aarch64`).
 - melange's `docker` runner needs a local Docker daemon, so build the packages on a machine executor.
 
-The companion [melange orb](https://github.com/juburr/melange-orb) installs melange with the same checksum verification, and its [Building Packages](https://github.com/juburr/melange-orb#-building-packages) section covers runners and where the signed packages land. See the [`local_signed_repository`](src/examples/local_signed_repository.yml) usage example for a complete job that uses both orbs.
+The companion [melange orb](https://github.com/juburr/melange-orb) installs melange with the same checksum verification and builds the packages: its `keygen` command writes `melange.rsa` and `melange.rsa.pub`, and its `build` command signs with `melange.rsa` and writes the packages to `packages/<arch>/` with a signed index, the names the configuration above uses. Its [Building Packages](https://github.com/juburr/melange-orb#-building-packages) section covers runners and other options. See the [`local_signed_repository`](src/examples/local_signed_repository.yml) usage example for a complete job that uses both orbs.
 
 ## 🧰 CircleCI Commands
 
@@ -417,16 +417,26 @@ Each of the orb's commands has a GitHub Action of the same name. The actions run
 | `juburr/apko-orb/actions/lock` | [`apko/lock`](#apkolock) | `config` (required), `output`, `arch`, `keyring_append`, `repository_append`, `cache_dir`, `log_level`, `extra_args` |
 | `juburr/apko-orb/actions/login` | [`apko/login`](#apkologin) | `registry` (required), `username`, `password` |
 
-The [Quick Start](#-quick-start) shows a complete workflow. To build packages with melange first and install them from a local signed repository, the companion [melange-orb](https://github.com/juburr/melange-orb#-github-actions) has an `install` action too:
+The [Quick Start](#-quick-start) shows a complete workflow. To build packages with melange first and install them from a local signed repository, use the companion [melange-orb](https://github.com/juburr/melange-orb#-github-actions)'s actions:
 
 ```yaml
-      - uses: juburr/apko-orb/actions/install@v1.2.0
-      - uses: juburr/melange-orb/actions/install@v1.2.2
+      - uses: juburr/apko-orb/actions/install@v1.2.1
+      - uses: juburr/melange-orb/actions/install@v1.3.0
+      - uses: juburr/melange-orb/actions/keygen@v1.3.0
+      - uses: juburr/melange-orb/actions/build@v1.3.0
+        with:
+          config: melange.yaml
+          arch: x86_64
+      - uses: juburr/apko-orb/actions/build@v1.2.1
+        with:
+          config: apko.yaml
+          image: ghcr.io/my-org/my-app:latest
+          output_path: my-app.tar
 ```
 
 How they differ from the orb's commands:
 
-- **Versions.** An action is referenced by the repository's release tag, such as `v1.2.0`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.2.0`.
+- **Versions.** An action is referenced by the repository's release tag, such as `v1.2.1`, the same tag the orb is published from. There is no moving major tag such as `v1` yet. For the strongest pinning, use the tag's commit SHA: `juburr/apko-orb/actions/build@<sha> # v1.2.1`.
 - **Environment variables.** The orb expands `$NAME` in its string parameters with the CircleCI CLI, which GitHub's runners don't have, so the actions take values as they are. Use GitHub's expressions instead, such as `image: ghcr.io/my-org/my-app:${{ github.sha }}`. A leading `~` in `install_path` is still the home directory.
 - **`log_level` and the booleans.** CircleCI checks the orb's enums and booleans before any step runs. The actions' inputs are plain strings, which the scripts check before running apko: `log_level` must be one of apko's levels, and `vcs`, `sbom` and `offline` must be `true` or `false`.
 - **Credentials.** `login`'s `username` and `password` name variables the workflow sets in the `env` of the step that uses it, from secrets. `publish` exports `APKO_DIGEST` and `APKO_DIGEST_REF` to later steps through `GITHUB_ENV`, and reads `GITHUB_TOKEN` for `ghcr.io` when its step's `env` sets it.
@@ -437,6 +447,8 @@ How they differ from the orb's commands:
 The actions are composite actions in [`actions/`](actions), next to the orb's source. Each passes its inputs to the orb's script as environment variables, and [`actions/run_script.sh`](actions/run_script.sh) gives the script what CircleCI would: a `BASH_ENV` file for the values it hands to later steps, which it then passes on through `GITHUB_PATH` and `GITHUB_ENV`.
 
 ## 📦 Upgrading
+
+Upgrading from v1.2.0 to v1.2.1? Nothing changes for pipelines or workflows: v1.2.1 moves the companion melange-orb in the [`local_signed_repository`](src/examples/local_signed_repository.yml) example, this README and CI to its 1.3.0 release, whose `keygen` and `build` commands and actions replace the hand-written `melange keygen` and `melange build` steps there.
 
 Upgrading from v1.1.3 to v1.2.0? Existing pipelines and workflows keep working: `build` gives apko the same options for the parameters it already had, now written as `--flag=value` and followed by `--`. v1.2.0 adds the [`publish`](#apkopublish), [`lock`](#apkolock) and [`login`](#apkologin) commands and actions, and new `build` parameters for apko's lock files, build date, VCS annotations, SBOMs, extra keys, repositories and packages, annotations, cache directory, offline builds and further arguments. Changes you may notice:
 - `build`'s step is now named `Build apko image`, and logs the apko command it runs instead of a list of its parameters.

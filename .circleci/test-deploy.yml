@@ -3,7 +3,7 @@ orbs:
   # Your orb will be automatically injected here during the pipeline.
   # Reference your orb's jobs and commands below as they will exist when built.
   orb-tools: circleci/orb-tools@12.5
-  melange: juburr/melange-orb@1.2.2
+  melange: juburr/melange-orb@1.3.0
   # The orb definition is intentionally not included here. It will be injected into the pipeline.
   apko-orb: {}
 
@@ -101,18 +101,13 @@ jobs:
     steps:
       - checkout
       - apko-orb/install
-      - melange/install:
-          version: 0.61.2
-          verify_checksums: strict
-      - run:
-          name: Build Signed APK With Ephemeral Key
-          command: |
-            melange keygen
-            melange build src/tests/local-repository/melange.yaml \
-              --arch x86_64 \
-              --runner docker \
-              --signing-key melange.rsa \
-              --out-dir packages
+      - melange/install
+      # keygen writes melange.rsa and melange.rsa.pub, and build signs with
+      # melange.rsa into packages/x86_64, where apko.yaml looks for them.
+      - melange/keygen
+      - melange/build:
+          config: src/tests/local-repository/melange.yaml
+          arch: x86_64
       - run:
           name: Reject Repository Without Its Key
           command: |

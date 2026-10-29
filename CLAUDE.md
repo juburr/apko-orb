@@ -72,7 +72,7 @@ Every command has a composite action of the same name in `actions/<command>/acti
 ### CI Pipeline
 
 - `.circleci/config.yml` - Setup workflow: `test-install`, `test-actions`, `test-commands`, orb-tools lint, pack and review (`orb_name: apko`), shellcheck.
-- `.circleci/test-deploy.yml` - `command-test` (build, load and run a gdal image), `multi-arch-test`, `build-options-test` (lock, a build from the lock file into a cache, then an offline build with annotations, a build date, `vcs: false` and `sbom_path`), `publish-test` (login and publish a two-architecture image to a `registry:2` with htpasswd auth on a machine executor), `local-repository-test` (a melange-built package from a local signed repository), `command-test-arm64`, `env-subst-test`, `shell-conventions-test`. Publishing runs on `v*` tags.
+- `.circleci/test-deploy.yml` - `command-test` (build, load and run a gdal image), `multi-arch-test`, `build-options-test` (lock, a build from the lock file into a cache, then an offline build with annotations, a build date, `vcs: false` and `sbom_path`), `publish-test` (login and publish a two-architecture image to a `registry:2` with htpasswd auth on a machine executor), `local-repository-test` (melange-orb's `keygen` and `build` commands make a signed package in a local repository, which apko installs), `command-test-arm64`, `env-subst-test`, `shell-conventions-test`. Publishing runs on `v*` tags.
 - `.github/workflows/actions.yml` - The same with the actions on GitHub's runners: `offline-tests`, `install`, `install-from-cache`, `build`, `multi-arch`, `build-options`, `publish`, `local-repository`.
 
 ## Linting

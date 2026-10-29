@@ -280,7 +280,7 @@ jobs:
 
   # Builds a product APK with melange, signs it and its index with an
   # ephemeral key, then installs it from the build-local repository with
-  # apko. melange comes from the companion melange-orb's install action.
+  # apko. melange comes from the companion melange-orb's actions.
   local-repository:
     runs-on: ubuntu-24.04
     steps:
@@ -288,18 +288,14 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./actions/install
-      - uses: juburr/melange-orb/actions/install@136b1dca5ed286f93b657d63fb363375e70fb252 # v1.2.2
+      - uses: juburr/melange-orb/actions/install@852099260f7e1813459ba515f0104d1889709d32 # v1.3.0
+      # keygen writes melange.rsa and melange.rsa.pub, and build signs with
+      # melange.rsa into packages/x86_64, where apko.yaml looks for them.
+      - uses: juburr/melange-orb/actions/keygen@852099260f7e1813459ba515f0104d1889709d32 # v1.3.0
+      - uses: juburr/melange-orb/actions/build@852099260f7e1813459ba515f0104d1889709d32 # v1.3.0
         with:
-          version: 0.61.2
-          verify_checksums: strict
-      - name: Build a signed APK with an ephemeral key
-        run: |
-          melange keygen
-          melange build src/tests/local-repository/melange.yaml \
-            --arch x86_64 \
-            --runner docker \
-            --signing-key melange.rsa \
-            --out-dir packages
+          config: src/tests/local-repository/melange.yaml
+          arch: x86_64
       - name: Reject the repository without its key
         run: |
           grep -v 'melange.rsa.pub' src/tests/local-repository/apko.yaml > "${RUNNER_TEMP}/apko-without-key.yaml"

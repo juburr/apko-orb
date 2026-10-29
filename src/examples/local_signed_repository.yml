@@ -22,8 +22,8 @@ description: >
 usage:
   version: 2.1
   orbs:
-    apko: juburr/apko-orb@1.2.0
-    melange: juburr/melange-orb@1.2.2
+    apko: juburr/apko-orb@1.2.1
+    melange: juburr/melange-orb@1.3.0
   jobs:
     build-images:
       machine:
@@ -31,13 +31,13 @@ usage:
       steps:
         - checkout
         - apko/install
-        - melange/install:
-            verify_checksums: strict
-        - run:
-            name: Build Signed Packages
-            command: |
-              melange keygen
-              melange build melange.yaml --arch x86_64 --runner docker --signing-key melange.rsa --out-dir packages
+        - melange/install
+        # Writes melange.rsa and melange.rsa.pub.
+        - melange/keygen
+        # Signs with melange.rsa and writes packages/x86_64.
+        - melange/build:
+            config: melange.yaml
+            arch: x86_64
         - apko/build:
             config: apko.yaml
             image: ghcr.io/example/my-app:latest
