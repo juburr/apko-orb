@@ -23,7 +23,7 @@ EXTRA_ARGS=$(apko_subst "${PARAM_EXTRA_ARGS}")
 
 apko_log_level "${LOG_LEVEL}"
 if [[ ! -f "${CONFIG}" ]]; then
-    echo "ERROR: The apko configuration ${CONFIG} does not exist." >&2
+    echo "ERROR: Configuration YAML does not exist at: ${CONFIG}" >&2
     exit 1
 fi
 if [[ -z "${IMAGE}" ]]; then

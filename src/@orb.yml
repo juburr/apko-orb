@@ -1,7 +1,7 @@
 version: 2.1
 
 description: |
-  Simplifies installation and use of apko within CircleCI, used to build distroless container images.
+  Installs a checksum-verified apko and builds, locks and publishes distroless container images with it, from the APK packages listed in a YAML file.
 
 display:
   home_url: "https://github.com/juburr/apko-orb"

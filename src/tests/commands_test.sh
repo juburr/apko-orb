@@ -281,7 +281,7 @@ check "a bad boolean fails before apko runs" not_run
 run build.sh BUILD_DEFAULTS PARAM_LOG_LEVEL=trace
 check "an unknown log_level fails" output_has "ERROR: log_level must be debug, info, warn, error, fatal or panic, not 'trace'."
 run build.sh BUILD_DEFAULTS PARAM_CONFIG=missing.yaml
-check "a missing configuration fails" output_has "ERROR: The apko configuration missing.yaml does not exist."
+check "a missing configuration fails" output_has "ERROR: Configuration YAML does not exist at: missing.yaml"
 check "a missing configuration fails before apko runs" not_run
 run build.sh BUILD_DEFAULTS PARAM_IMAGE=
 check "an empty image fails" output_has "ERROR: image must not be empty."
@@ -402,7 +402,7 @@ check "an output that is a directory fails" output_has "ERROR: output locks is a
 run lock.sh LOCK_DEFAULTS APKO_LOCK_EMPTY=1
 check "lock fails when apko wrote no lock file" output_has "ERROR: apko lock wrote no lock file at apko.lock.json."
 run lock.sh LOCK_DEFAULTS PARAM_CONFIG=missing.yaml
-check "lock with a missing configuration fails" output_has "ERROR: The apko configuration missing.yaml does not exist."
+check "lock with a missing configuration fails" output_has "ERROR: Configuration YAML does not exist at: missing.yaml"
 run lock.sh LOCK_DEFAULTS APKO_EXIT=2
 check "a failing lock fails the step" rc_is 2
 

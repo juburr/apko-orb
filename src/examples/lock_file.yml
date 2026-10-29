@@ -1,0 +1,54 @@
+description: >
+  Pin an image's packages with a lock file. A weekly job runs lock and stores
+  the new apko.lock.json for review, so package updates arrive as changes you
+  commit. Every build installs exactly the packages in the committed lock
+  file, and keeps apko's downloads in cache_dir, which save_cache and
+  restore_cache carry between jobs, keyed by the lock file. A build that
+  restores the cache for its lock file can run with offline: true.
+
+usage:
+  version: 2.1
+  orbs:
+    apko: juburr/apko-orb@1.2.0
+  jobs:
+    build-image:
+      docker:
+        - image: cimg/base:current-22.04
+      steps:
+        - checkout
+        - apko/install
+        - restore_cache:
+            key: apko-packages-{{ checksum "apko.lock.json" }}
+        - apko/build:
+            config: apko.yaml
+            lockfile: apko.lock.json
+            cache_dir: apk-cache
+            image: ghcr.io/my-org/my-app:latest
+            output_path: build/my-app.tar
+        - save_cache:
+            key: apko-packages-{{ checksum "apko.lock.json" }}
+            paths:
+              - apk-cache
+    refresh-lock-file:
+      docker:
+        - image: cimg/base:current-22.04
+      steps:
+        - checkout
+        - apko/install
+        - apko/lock:
+            config: apko.yaml
+        - store_artifacts:
+            path: apko.lock.json
+  workflows:
+    build:
+      jobs:
+        - build-image
+    weekly-lock-refresh:
+      triggers:
+        - schedule:
+            cron: "17 6 * * 1"
+            filters:
+              branches:
+                only: main
+      jobs:
+        - refresh-lock-file

@@ -46,8 +46,9 @@ inputs:
   vcs:
     description: >
       Detect the Git repository that holds the configuration file, and record
-      its URL and commit in the image's org.opencontainers.image.source and
-      org.opencontainers.image.revision annotations. false passes --vcs=false.
+      its URL and commit in the image index's org.opencontainers.image.source
+      and org.opencontainers.image.revision annotations. false passes
+      --vcs=false.
     default: "true"
   sbom:
     description: >

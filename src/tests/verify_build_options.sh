@@ -6,7 +6,7 @@
 #
 #   verify_build_options.sh cached TARBALL LOCKFILE
 #       The build with vcs and sbom at their defaults, which filled the cache:
-#       the index and every image record the checkout's commit, the SBOMs are
+#       the image index records the checkout's commit, the SBOMs are
 #       in the working directory (and are removed), and the image holds the
 #       locked package versions.
 #   verify_build_options.sh offline TARBALL LOCKFILE SBOM_DIR
@@ -53,6 +53,13 @@ expect_everywhere() {
         fail "expected $1 on the index and all ${IMAGES} image(s), found it ${count} time(s)"
     fi
 }
+# expect_index KEY=VALUE: the index carries it. (apko records the VCS
+# annotations on the index only.)
+expect_index() {
+    if ! grep -qxF "index $1" <<< "${ANNOTATIONS}"; then
+        fail "expected $1 on the index"
+    fi
+}
 # expect_nowhere KEY: neither the index nor any image carries it.
 expect_nowhere() {
     if grep -qE "^(index|image) $1=" <<< "${ANNOTATIONS}"; then
@@ -79,7 +86,7 @@ check_locked_versions() {
 
 case "${STAGE}" in
     cached)
-        expect_everywhere "org.opencontainers.image.revision=$(git rev-parse HEAD)"
+        expect_index "org.opencontainers.image.revision=$(git rev-parse HEAD)"
         for sbom in sbom-index.spdx.json sbom-x86_64.spdx.json; do
             [[ -s "${sbom}" ]] || fail "expected ${sbom} in the working directory"
         done
